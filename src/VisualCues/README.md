@@ -1,4 +1,4 @@
-# VisualCues 0.1.3
+# VisualCues 0.1.4
 
 A mod for **Dungeons of Eternity** designed to assist Deaf/HoH users:
 
@@ -6,6 +6,14 @@ A mod for **Dungeons of Eternity** designed to assist Deaf/HoH users:
 - **Enemy noise.** Enemies in your vicinity that make a sound will now trigger a brief HUD indicator, pointing in their direction and estimating their distance. When you face the source of the sound it'll fade away.
 
 The enemy noise feature works regardless of whether other users have the mod, but the call feature requires other users to have it. The mod doesn't affect your profile, character, progression, or save games.
+
+## What's new in 0.1.4
+
+For the 2026-09-27 game update. The update added a parameter to the game's positional-sound
+call, so 0.1.3 could not hook it (`patch FAILED: AudioManager.PlaySoundAt`) and enemy noise came
+only from footsteps and attack animations; 0.1.4 finds the call again, and will keep finding it
+if more parameters are added. The keyboard keys (quote, period, comma) now read the keyboard the
+way the updated game does, instead of throwing every frame.
 
 ## Install
 
@@ -27,7 +35,7 @@ Find it by **right-clicking the game in Steam → Manage → Browse local files*
 4. **Launch.** The MelonLoader console should show:
 
    ```
-   VisualCues 0.1.3 — stick-click call (event 160), unseen-enemy noise markers.
+   VisualCues 0.1.4 — stick-click call (event 160), unseen-enemy noise markers.
    Patches: 3 installed, 0 refused, 0 failed.
    ```
 

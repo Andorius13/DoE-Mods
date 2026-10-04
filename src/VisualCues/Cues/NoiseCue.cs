@@ -55,9 +55,25 @@ namespace VisualCues.Cues
         {
             Hooks.Patch(AccessTools.Method(typeof(AI), "AE_Footstep"), null, Hooks.Of(typeof(NoiseCue), nameof(FootstepPostfix)), "AI.AE_Footstep");
             Hooks.Patch(AccessTools.Method(typeof(AI), "AE_FX"), null, Hooks.Of(typeof(NoiseCue), nameof(FxPostfix)), "AI.AE_FX");
-            var playAt = AccessTools.Method(typeof(AudioManager), "PlaySoundAt",
-                new[] { typeof(Vector3), typeof(SoundFX), typeof(EmitterChannel), typeof(float), typeof(float), typeof(float), typeof(bool) });
-            Hooks.Patch(playAt, Hooks.Of(typeof(NoiseCue), nameof(SoundPrefix)), null, "AudioManager.PlaySoundAt(Vector3, SoundFX, …)");
+            var playAt = FindPlaySoundAt();
+            Hooks.Patch(playAt, Hooks.Of(typeof(NoiseCue), nameof(SoundPrefix)), null,
+                $"AudioManager.PlaySoundAt(Vector3, SoundFX, …{(playAt == null ? "" : $" {playAt.GetParameters().Length} params")})");
+        }
+
+        /// <summary>
+        /// The <c>(Vector3, SoundFX, …)</c> overload, matched on its first two parameters only: the
+        /// 2026-09-27 update appended <c>int overrideClip</c> and an exact signature went missing
+        /// (the other overload takes an <c>AudioClip</c> second, so this stays unambiguous).
+        /// </summary>
+        private static System.Reflection.MethodInfo FindPlaySoundAt()
+        {
+            foreach (var m in AccessTools.GetDeclaredMethods(typeof(AudioManager)))
+            {
+                if (m.Name != "PlaySoundAt" || !m.IsStatic) continue;
+                var p = m.GetParameters();
+                if (p.Length >= 2 && p[0].ParameterType == typeof(Vector3) && p[1].ParameterType == typeof(SoundFX)) return m;
+            }
+            return null;
         }
 
         // ---- patches: never throw out of these, they run inside the game's animation and audio paths.

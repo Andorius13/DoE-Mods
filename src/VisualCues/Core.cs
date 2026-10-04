@@ -6,7 +6,7 @@ using VisualCues.Cues;
 using VisualCues.Hud;
 using VisualCues.Net;
 
-[assembly: MelonInfo(typeof(Core), "VisualCues", "0.1.3", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "VisualCues", "0.1.4", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace VisualCues
@@ -24,7 +24,7 @@ namespace VisualCues
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.3";
+        public const string Version = "0.1.4";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -59,9 +59,9 @@ namespace VisualCues
             if (!ModConfig.HotkeysEnabled.Value) return;
             try
             {
-                if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Quote)) SummonCue.Fire("key");
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Period)) NoiseCue.Test();
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Comma))
+                if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.Quote)) SummonCue.Fire("key");
+                else if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.Period)) NoiseCue.Test();
+                else if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.Comma))
                 {
                     MelonPreferences.Load();
                     LoggerInstance.Msg("Settings reloaded from MelonPreferences.cfg.");
