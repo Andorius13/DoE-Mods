@@ -22,7 +22,7 @@ rate limits, and making the current state impossible to misread.
 ### The hook: `AvatarPlayer.OnDamaged`
 
 ```
-// RVA: 0x3E96D0
+// RVA: 0x3E96D0 (0x4F86E0 since the 2026-09-27 update)
 public bool OnDamaged(float damage, float knockBackDist, Vector3 damagePosition, DamageType damageType)
 ```
 
@@ -49,6 +49,18 @@ which is the filter that keeps invulnerability frames and shrugged-off hits from
 and `waitingForRescue`. The mod reads `maxHP` for the fraction and treats any of
 `!IsAlive || lastChance || waitingForRescue` as downed, since the last-chance state is the end
 of your run as far as being hit goes even though the game has not killed you yet.
+
+**After the 2026-09-27 update** (`dump-0928/`): the signature is unchanged and the new RVA
+`0x4F86E0` is still unique. `Health` kept `maxHP`, `normalizedHP`, `IsAlive`, `lastChance` and
+`waitingForRescue`, but gained an overheal bonus: `GetMaxHP()` is `maxHP × (1 + exosuit
+syncedOverheal)` and `normalizedHP` now divides by that, while `normalizedHP_Overheal` divides by
+the bare field. So 0.5.0 takes the hit's fraction against `GetMaxHP()`, the same max the remaining
+health is measured in. `DamageType` gained `DarkLight` (18) at the end. The shared empty-method
+stub moved from `0x35FC20` to `0x42A210` (3,588 methods); the guard reads it off
+`WeaponFactory.Init` at runtime, which is still an empty body, so nothing had to change there.
+`XRInput.L3`/`R3`, `LocalAvatar`, `RemotePlayers`, `Eye`/`Head`, `ActorNumber` and
+`LoadBalancingClient.OnEvent` are all as before. The mod never touched `UnityEngine.Input`, which
+now throws since the game moved to the Input System package.
 
 ### Filtering to yourself
 
@@ -79,6 +91,102 @@ dump pins down. The postfix also gets `__result`, which the event does not.
 already routes haptics per body part, and it is the obvious future home for "shock the shocker
 nearest where you were hit" if the bite-zone mapping turns out to be worth driving from
 geometry rather than severity.
+
+## The heal shield (0.5.0, per source since 0.5.1, stacking and full health since 0.5.2)
+
+Asked for: after a healing potion or a healing staff, a while in which hits do not shock. 0.5.0
+left out life steal; after the first party session (2026-10-02) the user asked for longer
+shields, different lengths for minor and major potions, a very long one for the staff, and a
+brief one for life steal. Every heal of the local player goes through
+`AvatarPlayer.Net_Heal(float HP, bool ahhh, string notif)` (RVA `0x4F7600`, unique), and only on
+your own client: on anyone else's avatar it does nothing but announce a rescue, and the heal's
+`RPC_OnHealed` is the sync to everyone else. Its callers, by `xref.py` against the 2026-09-27
+build:
+
+| Caller | What | `notif` | Shield (0.5.2 default) | At full health (0.5.2, from the 2026-09-28 build's code) |
+|---|---|---|---|---|
+| `HealthPotion.OnDrinkPotion` | drinking | empty | minor 10 s / major 20 s | `Net_Heal` still runs: `Potion.UpdatePhysics` drinks on lid, tilt and pour time, never health. Counts. |
+| `HealthPotion.RPC_OnBreak` | a thrown potion shattering on you | empty | minor / major | `Net_Heal` still runs (distance check only). Counts. |
+| `HealthPotionArea.ApplyToPlayer` | the splash area it leaves | empty | size of the last potion broken within the area's `duration`, else major | `Net_Heal` still runs (skipped only while `waitingForRescue`). Counts. |
+| `KineticBeam.BeamPlayer` | healing staff beam, 2 HP a tick (only for kinetic type Heal, 3, and only on the healed player's client) | empty | +2 s a tick, up to 45 s | **Not seen.** `KineticBeam.CanBeamPlayer` (`0xA60AD0`) is false for a heal beam on a player with HP ≥ `GetMaxHP()` unless their `playerStateType` is Poison (1) or Ice (5); `BeamBase.UpdateBeam` sends `SetBeamedPlayer` only if it is true, and `WeaponStaff.UpdateBeamMode` drops the beam when it turns false. Nothing reaches your client. Poisoned or frozen at full health, the beam runs and counts. |
+| `KineticEffect.ApplyToPlayer` | dead: only `WeaponStaff.ApplyKineticsToPlayer` calls it, a `[PunRPC]` nothing sends (the string is not in `stringliteral.json`) | empty | not hooked since 0.5.1 | — |
+| `Shield.TryShieldAbsorb` | shield absorb: the life steal | stole.health | +2 s each, up to 45 s | **Skips `Net_Heal`** (`normalizedHP` < 1 required, and 1 s since the last steal). Hooked directly since 0.5.2. Counts. |
+| `DynamicAnchorStab.ApplyDamageMultipliers` | vampire weapon perks (sword, dagger, longsword) | stole.health | +2 s each, up to 45 s | `Net_Heal` still runs: the perk's probability roll and a not-"Hurt" check, no health check. Counts. |
+| `AvatarPlayer.OnAIKilled` | Bloodlust ring heal on a kill; revive on a kill | stole.health / revived | +2 s each, up to 45 s / none | **Skips `Net_Heal`** (HP < `GetMaxHP()` required). Hooked directly since 0.5.2. Counts. |
+| `Mimic.RPC_OnHit` | revive | revived | none | — |
+| `AvatarPlayer.LateUpdate` | `Health.UpdateLocal`'s regain (exosuit ChestVitality / MindStillness) | empty | none | — |
+
+Potion size is `Prop.type` (field `0x58`): `HealthPotion` = 12 is major, `HealthPotionSmall` = 18
+minor, anything else major.
+
+**Lengths.** A potion sets end = max(end, now + its seconds): never earlier. The staff and life
+steal stack (asked for 2026-10-02): end = min(max(now, end) + 2 s, now + `ShieldStackMaxSeconds`),
+and a tick that would not move the end changes nothing. So the first staff tick buys 2 s, a beam
+held on you climbs about a second of shield per second (each tick adds 2, a second passes) and
+sits at 45 s, and the shield then outlasts the beam by 45 s. A steal during a potion's shield adds
+its 2 s on top; a steal never shortens a potion shield that already runs past the cap. One cap
+setting serves both stacking sources; the per-tick amounts are `ShieldStaffSeconds` and
+`ShieldLifeStealSeconds`. 0.5.1's cfg default of 45 for `ShieldStaffSeconds` (then a flat length)
+is moved to 2 on load, since 45 per tick would be the whole cap at once.
+
+**Full-health life steal.** `Shield.OnPropCollision` calls `TryShieldAbsorb(impactIndex)`
+(`0xB3E520`, unique; also called from `OnMuscleCollision` and `Shield_Mythic`'s two, not read)
+only on the shield owner's client (`IsMine`), held, with `perk.ShieldAbsorb_Enabled` (`Weapon.perk` at `0x474`, so `0x50C`); it heals
+`AvatarPlayer.LocalAvatar` by `perk.ShieldAbsorb` (`0x510`) if `impactIndex` ≥ 1, `normalizedHP`
+< 1 and `PhysX.time` ≥ `lastAbsorbTime` (`0x59C`) + 1, and only a heal moves `lastAbsorbTime`.
+`AvatarPlayer.OnAIKilled(enemy, killerActorNr)` (`0x4F8370`, unique), on the local player, skips
+an enemy of faction GoodGuys or a kamikaze whose `AIKamikaze.wasBlasted`, requires
+the killer to be your own actor number (the mod reads `PVO.OwnerActorNr`), and heals by `Ring_AuraBloodlust` (rings of
+`EquippableStats.AuraBloodlust`, 71, summed) only while alive and HP < `GetMaxHP()`. The mod's
+prefixes repeat every condition but the health one (the absorb's 1 s with its own clock, moved
+by every absorb steal it counts); the `Net_Heal` postfix notes a stole.health heal made inside
+either call, and the method's postfix counts the steal itself only if none was. So a steal is
+counted once whether the game healed or not.
+
+**One staff tick per beam.** Each `WeaponStaff.BeamPlayer` RPC on you leaves one unclaimed beam;
+the heal marked by `KineticBeam.BeamPlayer` claims it, and an unmarked heal within 0.75 s counts as
+the staff's only if it can still claim one. Before 0.5.2 any heal in the window was the staff's,
+harmless with a flat 45 s but a double tick once ticks stack.
+
+**The staff beam's chain.** The staff holder's client runs `WeaponStaff.UpdateBeamMode` and sends
+`photonView.RPC("BeamPlayer", RpcTarget.All, playerViewID)` about once a second. Every client runs
+`[PunRPC] WeaponStaff.BeamPlayer(int)` (`0x4672A0`, unique): `AvatarPlayer.Find(viewID)`, then the
+virtual `BeamBase.BeamPlayer` (slot 6) on `WeaponStaff.beam` → `KineticBeam.BeamPlayer`
+(`0xA608E0`), which plays its FX at `FullBody.ik.references.chest` (a null anywhere on that path
+throws before the heal) and calls `Net_Heal(2)` only if the kinetic type is 3 and the player is
+local. The `KineticBeam.BeamPlayer` frame mark is what counts the heal, and it worked on the
+healed friend's client in the 2026-10-02 session (every tick logged `healing staff`). Since 0.5.1
+a prefix on `WeaponStaff.BeamPlayer` is a second witness: when you are the target it logs
+`staff beam on you from actor N (kinetic type T)` once per run of beams, counts any heal within
+0.75 s as the staff's, says `but no heal followed within 0.75 s` once if none does, and
+`staff beam on you stopped: B beam(s), H heal(s)` when the beams stop for 3 s. Since 0.5.2 every
+recognised source counts whether or not `normalizedHP_Overheal` went up; only the unrecognised
+heals (revive, regain) still need a gain to be logged.
+
+**Why the friend saw no cue in that session**: they disarmed at 23:22 and never re-armed, so the
+staff heals after that happened while disarmed, where the cue is not drawn; the armed ones bought
+0.5.0's 5 s and ended before the next hit. 0.5.1 logs `heal shield not shown: disarmed` when a
+shield starts disarmed.
+
+A teammate's rescue arrives through `RPC_OnHealed` → `RPC_Rescue`, and scene and lobby resets
+through `Health.Reset` / `SetHP`; none of them calls `Net_Heal`, so none starts the shield. There
+are no shrines. The notification string separates life steal from the rest but not the potion
+from the regain — both pass `string.Empty` — so the potion and beam methods get a prefix that
+marks the frame, and the `Net_Heal` postfix reads the mark. Their RVAs (`0x949170`, `0x949320`,
+`0x948D90`, `0xA608E0`, plus `0x4672A0` for the RPC, `0xB3E520` and `0x4F8370` for the
+full-health life steal) each appear once in dump.cs.
+
+The downing hit is not held: "death always fires" already overrides the cooldown and the ceiling,
+and a shield that could swallow the death shock would be the one exception to it. Bites are not
+held either. Both decisions are in the README.
+
+**The cue.** The user wanted something in the headset so a quiet hit does not look like a broken
+link. The game's own candidates are all gameplay: `ShieldArea` is a damage-blocking dome with
+NavMesh obstacles, and the first-person arm glow (`FirstPersonModel.Arm.Material`,
+`glowOverhealColor`) is the health readout — and CustomAvatars may replace those arms anyway. So
+`Hud/ShieldCue.cs` draws its own: a thin, dim arc 28° below the line of sight, parented to the
+camera, flashing briefly as it appears (0.5.1), shortening from both ends as the shield runs out
+and fading over its last second, only while armed. It is a status light, not UI; the settings stay on the desktop.
 
 ## The StayPutVR side
 
@@ -151,6 +259,17 @@ fields; `Discovery.Pump` on the main thread logs the transitions.
 
 CustomAvatars needed no change: VRCFaceTracking only retargets its sends to a service named
 like VRChat's, ignores `StayPutVR`, and falls back to port 9000, where CustomAvatars listens.
+
+### When the app is too old
+
+A session on 2026-09-28 fired the link on 61 hits and the device on 17 — exactly the ones at 0.5
+or more. The installed app was from July, before 1.5.2: it turned the float into a bool at 0.5,
+and it answered no OSC Query question (`182 OSC Query question(s), 0 answer(s)` at quit), which
+the mod could not tell from OSC Query being off. Both symptoms come from the same old build, so
+the second is now the warning for the first: after `QuietQuestions` (10, about half a minute)
+without one answer, `Discovery.NeverAnswered` is set, the panel shows two amber lines, and the log
+says once that OSC Query is off or the app is older than 1.5.2 and drops hits under half
+strength. An app that has answered even once never triggers it.
 
 ### How hard: the float Shock parameter
 

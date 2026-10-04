@@ -58,7 +58,10 @@ namespace StayPutVR.Trigger
                 try
                 {
                     var health = __instance.health;
-                    maxHp = health.maxHP;
+                    // GetMaxHP is the max with the overheal bonus in it, the same max that
+                    // normalizedHP divides by; the maxHP field is the base without it.
+                    try { maxHp = health.GetMaxHP(); } catch { maxHp = health.maxHP; }
+                    if (maxHp <= 0.01f) maxHp = health.maxHP;
                     // The postfix runs after the game applied the hit, so this is what is left.
                     try { remaining = health.normalizedHP; } catch { }
                     // "Downed" covers both outright death and the last-chance state the game

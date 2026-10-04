@@ -45,6 +45,8 @@ namespace StayPutVR.Osc
         public static double RefreshIntervalSeconds = 10.0;
         /// <summary>No answer for this long after having had one, and the Port setting takes over again.</summary>
         public static double LostAfterSeconds = 35.0;
+        /// <summary>Questions without a single answer before the old-app warning; about half a minute.</summary>
+        public static int QuietQuestions = 10;
 
         private static readonly object Gate = new object();
         private static Thread _thread;
@@ -62,6 +64,7 @@ namespace StayPutVR.Osc
         // Main-thread-only: what has been logged so far, so Pump logs transitions and not state.
         private static string _announcedKey = "";
         private static string _announcedError = "";
+        private static bool _announcedNeverAnswered;
 
         public static int Queries { get { lock (Gate) return _queries; } }
         public static int Answers { get { lock (Gate) return _answers; } }
@@ -79,6 +82,17 @@ namespace StayPutVR.Osc
         {
             var ep = Endpoint;
             return ep == null ? (fallbackHost, fallbackPort) : (ep.Address.ToString(), ep.Port);
+        }
+
+        /// <summary>
+        /// Asked <see cref="QuietQuestions"/> times and never answered once. The app from 1.5.2
+        /// answers; one older than that never does, and also reads a float under 0.5 as false,
+        /// so light hits go nowhere. OSC Query off in the app, or the app not running, look the
+        /// same from here, which is why the warning says "if".
+        /// </summary>
+        public static bool NeverAnswered
+        {
+            get { lock (Gate) return _running && _found == null && _answers == 0 && _queries >= QuietQuestions; }
         }
 
         /// <summary>A few words for the panel next to the target.</summary>
@@ -114,6 +128,7 @@ namespace StayPutVR.Osc
             }
             _announcedKey = "";
             _announcedError = "";
+            _announcedNeverAnswered = false;
         }
 
         /// <summary>
@@ -145,6 +160,14 @@ namespace StayPutVR.Osc
                     ShockLog.Line(line);
                 }
                 _announcedKey = key;
+            }
+
+            if (!_announcedNeverAnswered && NeverAnswered)
+            {
+                _announcedNeverAnswered = true;
+                var line = $"OSC Query: no answer to {QuietQuestions} questions. Either OSC Query is off in the StayPutVR app, or the app is older than 1.5.2 — and an app that old drops every hit under half strength. Install 1.5.2.";
+                Core.Log.Warning(line);
+                ShockLog.Line(line);
             }
 
             if (error.Length > 0 && error != _announcedError)

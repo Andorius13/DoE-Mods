@@ -1,4 +1,4 @@
-# StayPutVR (Dungeons of Eternity mod) — 0.4.0
+# StayPutVR (Dungeons of Eternity mod) — 0.5.2
 
 Take damage in the dungeon and your shock device fires, through the
 [StayPutVR](https://github.com/InconsolableCellist/StayPutVR) app. Bite another player and theirs
@@ -20,9 +20,11 @@ Nothing is written to your profile, character, progression or saves.
 4. **Launch.** The MelonLoader console should show:
 
    ```
-   StayPutVR 0.4.0 — a hit fires /avatar/parameters/Shock at the StayPutVR app, found over OSC Query; until it is, at 127.0.0.1:9001. Logs in ...
+   StayPutVR 0.5.1 — a hit fires /avatar/parameters/Shock at the StayPutVR app, found over OSC Query; until it is, at 127.0.0.1:9001. Logs in ...
    patch ok: AvatarPlayer.OnDamaged @0x...
-   Patches: 1 installed, 0 refused, 0 failed.
+   patch ok: AvatarPlayer.Net_Heal @0x...
+   ...
+   Patches: 7 installed, 0 refused, 0 failed.
    PhotonHook installed on LoadBalancingClient.OnEvent.
    OSC Query: the StayPutVR app is at 127.0.0.1:51234 (answer from 192.168.1.20:5353). The Port setting is not used while it answers.
    ```
@@ -49,7 +51,9 @@ per-device disobedience intensities* on, each PiShock or OpenShock device has it
 in its tab.
 
 **The app must be 1.5.2 or newer.** The mod always sends how hard the hit was as a float, and an
-older app reads a float under 0.5 as false, so light hits would go missing.
+older app reads a float under 0.5 as false, so light hits would go missing. An older app also
+never answers over OSC Query, so after about half a minute of silence the panel warns in amber
+and the log says it once. OSC Query turned off in the app looks the same from here.
 
 ## How hard it shocks
 
@@ -85,6 +89,35 @@ a double click of either stick to send a call.
 the desktop mirror) shows the arm state, where triggers go, the limits, what has fired and what was
 held back and why. It turns amber if the socket is failing, because an armed-looking panel over a
 dead link is the one thing you must not be able to mistake for a working one.
+
+## Heal shield
+
+After a heal, hits do not shock for a while, by what healed you:
+
+| Heal | Shield |
+|---|---|
+| Minor healing potion (drunk, thrown or splashed) | 10 s |
+| Major healing potion | 20 s |
+| Healing staff beam | +2 s a tick (about one a second), up to 45 s |
+| Life steal — a shield's absorb, the vampire weapon perks, the Bloodlust ring on a kill | +2 s each, up to 45 s |
+
+A potion moves the end to whichever is later, its own or the running shield's, so it never cuts a
+longer shield short. The staff and life steal stack: each tick or steal adds its 2 s on top of
+what is left, but never to more than 45 s from now. So the longer a friend keeps the beam on you,
+the longer you are covered, and a 45 s shield runs out 45 s after the beam stops.
+
+Full health counts: a potion drunk, a vampire hit or a shield absorb at a full bar still starts
+or adds to the shield. The one exception is the staff, which the game will not aim at a player
+at full health (unless poisoned or frozen), so its first tick comes once you are hurt. Revives and
+the game's own regain do not count. Each source has its own setting; `0` turns that one off.
+
+**The killing blow still fires**, as it does through the cooldown and the ceiling: death always
+fires. Bites are not held either; they are someone else's shock, with their own limits.
+
+While it is up and the link is armed, a dim arc sits low in your view in the headset — it flashes
+as it appears and shortens as the time runs out — and the panel says how long is left. Disarmed,
+nothing would fire anyway, so nothing is drawn; the log says `heal shield not shown: disarmed`.
+Every held hit is in the log as `held back: heal shield, 3.2 s left`.
 
 ## Biting
 
@@ -126,6 +159,11 @@ file on quit.
 | `CooldownSeconds` | `2` | No second trigger inside this window. |
 | `MaxPerMinute` | `15` | Max triggers per rolling minute. `0` = no limit. |
 | `IgnoreDamageTypes` | *(empty)* | Types that never fire, e.g. `Fall,Poison,GeoCollision`. |
+| `ShieldMinorPotionSeconds` | `10` | No shocks this long after a minor healing potion. `0` = off. |
+| `ShieldMajorPotionSeconds` | `20` | The same for a major potion. |
+| `ShieldStaffSeconds` | `2` | Added for each tick of a healing staff beam. |
+| `ShieldLifeStealSeconds` | `2` | Added for each life steal. |
+| `ShieldStackMaxSeconds` | `45` | The most the staff and life steal can add up to. |
 | `BiteEnabled` | `true` | Your chomp bites other players. |
 | `BiteVictimEnabled` | `true` | Other players' bites fire your device. |
 | `BitePath` | `/avatar/parameters/SPVR_Bite` | What a bite fires. |
@@ -160,7 +198,8 @@ lines.
 **Nothing fires.** Arm it: hold both sticks until the panel says `ARMED`. Then read the panel's
 `Link:` line. `via OSC Query` means the app answered and the port is right. `Port setting` means it
 did not: the app is older than 1.5.2, or OSC Query is off there, and `Port` has to match the app's
-receive port by hand. If the link is right and the log says the datagram went out, the problem is
+receive port by hand. If only some hits fire — the harder ones — it is an app older than 1.5.2.
+If nothing fires for a while after a potion or a staff heal, that is the heal shield (up to 45 s after a long staff beam). If the link is right and the log says the datagram went out, the problem is
 between the app and the device.
 
 **The panel is amber.** The socket is failing and the reason is on it.
@@ -176,10 +215,10 @@ src/StayPutVR/
 ├── Hooks.cs             guarded Harmony patching (shared-stub check)
 ├── ShockLog.cs          session log: every hit and every decision
 ├── Osc/                 OSC 1.0 encoder, the one outbound socket, OSC Query discovery
-├── Trigger/             the damage hook, the policy, the stick gesture
+├── Trigger/             the damage and heal hooks, the policy, the stick gesture
 ├── Bite/                the jaw, the chomp, who gets bitten
 ├── Net/                 consent and bites, Photon events 180-181
-├── Hud/                 the desktop panel
+├── Hud/                 the desktop panel, and the heal shield's arc in the headset
 └── tests/               standalone checks for Osc/ — see tests/README.md
 ```
 

@@ -16,7 +16,7 @@ namespace StayPutVR.Trigger
     ///
     /// Intensity is the StayPutVR app's: it holds the intensity and duration for each parameter
     /// it listens on. What this end says is how hard the hit was — a float from 0 to 1 that the
-    /// app (1.5.2 and up) scales between its configured intensity and its configured max.
+    /// app (1.5.2 and up) fires at that fraction of its Shock max.
     /// <see cref="Severity"/> decides the number. Every trigger is a float; there is no bool
     /// mode, because an older app reads a float under 0.5 as false and would drop light hits,
     /// and a setting that quietly kept an old install on bool was worse than requiring the app.
@@ -24,6 +24,11 @@ namespace StayPutVR.Trigger
     /// Going down is one shock, not a stream. The game keeps reporting hits while you lie there
     /// waiting for rescue, every one of them flagged as downed; the first is the killing blow
     /// and is allowed past the cooldown and the ceiling, the rest are held until you are up.
+    ///
+    /// For a while after a healing potion, a healing staff or life steal heals you, hits are held
+    /// too (<see cref="HealShield"/>): a set length per potion, and for the staff and life steal a
+    /// few seconds per tick that stack up to a cap. Full health counts. Not the killing blow:
+    /// death always fires.
     /// </summary>
     public static class ShockPolicy
     {
@@ -38,6 +43,9 @@ namespace StayPutVR.Trigger
 
         /// <summary>Set by the hit that put you down, cleared by the first hit taken standing or by a scene change.</summary>
         private static bool _down;
+
+        /// <summary>The time after a heal in which hits do not fire.</summary>
+        public static readonly HealShield Shield = new HealShield();
 
         private static string _ignoreSource;
         private static readonly HashSet<string> Ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -91,6 +99,7 @@ namespace StayPutVR.Trigger
         {
             var limits = ModConfig.CooldownSeconds.Value > 0f ? $"{ModConfig.CooldownSeconds.Value:0.#} s apart" : "no cooldown";
             if (ModConfig.MaxPerMinute.Value > 0) limits += $", at most {ModConfig.MaxPerMinute.Value}/min";
+            limits += $", heal shield {ShieldSummary()}";
             return limits + "; death always fires";
         }
 
@@ -125,6 +134,7 @@ namespace StayPutVR.Trigger
             var lethal = downed && !_down;
             var alreadyDown = downed && _down;
             _down = downed;
+            if (lethal) Shield.Clear();   // it lets the killing blow through, and you are down now
 
             string hold = null;
             if (!_armed) hold = "disarmed";
@@ -132,6 +142,7 @@ namespace StayPutVR.Trigger
             else if (IsIgnoredType(damageType)) hold = $"{damageType} is in IgnoreDamageTypes";
             else if (damage < ModConfig.MinDamage.Value) hold = $"{damage:0.#} HP is under MinDamage {ModConfig.MinDamage.Value:0.#}";
             else if (fraction < ModConfig.MinDamageFraction.Value) hold = $"{fraction * 100f:0}% is under MinDamageFraction {ModConfig.MinDamageFraction.Value * 100f:0}%";
+            else if (Shield.Holds(now, lethal)) hold = $"heal shield, {Shield.Left(now):0.0} s left";
             else if (!lethal && now - _lastFireAt < ModConfig.CooldownSeconds.Value) hold = $"cooldown, {ModConfig.CooldownSeconds.Value - (now - _lastFireAt):0.#} s left";
             else if (!lethal && OverBudget(now)) hold = $"per-minute ceiling of {ModConfig.MaxPerMinute.Value} reached";
 
@@ -190,6 +201,77 @@ namespace StayPutVR.Trigger
             }
         }
 
+        /// <summary>Seconds of shield a heal from <paramref name="source"/> buys, from its setting. 0 = none.</summary>
+        public static float ShieldSeconds(HealSource source) => source switch
+        {
+            HealSource.MinorPotion => ModConfig.ShieldMinorPotionSeconds.Value,
+            HealSource.MajorPotion => ModConfig.ShieldMajorPotionSeconds.Value,
+            HealSource.Staff => ModConfig.ShieldStaffSeconds.Value,
+            HealSource.LifeSteal => ModConfig.ShieldLifeStealSeconds.Value,
+            _ => 0f,
+        };
+
+        private static string SettingName(HealSource source) => source switch
+        {
+            HealSource.MinorPotion => "ShieldMinorPotionSeconds",
+            HealSource.MajorPotion => "ShieldMajorPotionSeconds",
+            HealSource.Staff => "ShieldStaffSeconds",
+            _ => "ShieldLifeStealSeconds",
+        };
+
+        /// <summary>Whether a source adds to the shield per tick (<see cref="HealShield.Stack"/>) rather than setting a length.</summary>
+        public static bool Stacks(HealSource source) => source == HealSource.Staff || source == HealSource.LifeSteal;
+
+        /// <summary>ShieldStackMaxSeconds: the most the staff and life steal can stack to.</summary>
+        public static float StackCap() => ModConfig.ShieldStackMaxSeconds.Value;
+
+        /// <summary>The lengths as one phrase, e.g. "10/20 s potions, +2 s per staff tick and +2 s per life steal up to 45 s".</summary>
+        public static string ShieldSummary() =>
+            $"{ShieldSeconds(HealSource.MinorPotion):0.#}/{ShieldSeconds(HealSource.MajorPotion):0.#} s potions, " +
+            $"+{ShieldSeconds(HealSource.Staff):0.#} s per staff tick and +{ShieldSeconds(HealSource.LifeSteal):0.#} s per life steal up to {StackCap():0.#} s";
+
+        /// <summary>
+        /// You were healed, by <paramref name="what"/>; <paramref name="share"/> is the health it
+        /// added, 0 at full health. A potion starts the heal shield or pushes its end later; the
+        /// staff and life steal add to it up to the cap; anything else — a revive, the game's own
+        /// regain — is only logged. True when the shield's end moved.
+        /// </summary>
+        public static bool OnHealed(HealSource source, string what, float share)
+        {
+            var heal = share > 0.0001f ? $"healed {share * 100f:0}% ({what})" : $"heal at full health ({what})";
+            if (source == HealSource.None)
+            {
+                if (ModConfig.LogEveryHit.Value) ShockLog.Line($"{heal} — no heal shield");
+                return false;
+            }
+            var now = Time.unscaledTime;
+            var seconds = ShieldSeconds(source);
+            var name = HealSources.Name(source);
+            var stacks = Stacks(source);
+            var cap = Mathf.Max(StackCap(), seconds);
+            // A staff beam ticks about once a second; the first tick of a run and reaching the cap
+            // are worth a line, the ticks between are not.
+            var sameRun = Shield.Active(now) && Shield.Source == name;
+            var leftBefore = Shield.Left(now);
+            var moved = stacks ? Shield.Stack(now, seconds, cap, name) : Shield.Start(now, seconds, name);
+            if (moved)
+            {
+                var left = Shield.Left(now);
+                var atCap = stacks && left >= cap - 0.01f;
+                if (!sameRun || !stacks)
+                    ShockLog.Line($"{heal} — heal shield for {left:0.#} s" + (stacks ? $" (+{seconds:0.#} s a tick, up to {cap:0.#} s)" : "")
+                                  + (_armed ? "" : " (heal shield not shown: disarmed)"));
+                else if (atCap && leftBefore < cap - 0.01f)
+                    ShockLog.Line($"{heal} — heal shield at its {cap:0.#} s cap");
+                return true;
+            }
+            if (ModConfig.LogEveryHit.Value && !(stacks && sameRun))
+                ShockLog.Line(seconds <= 0f
+                    ? $"{heal} — no heal shield, {SettingName(source)} is 0"
+                    : $"{heal} — heal shield already runs longer ({leftBefore:0.0} s left, {Shield.Source})");
+            return false;
+        }
+
         /// <summary>Ignore the next hit that arrives within this many seconds. Used for the bite's own hit point.</summary>
         public static void SuppressNextHit(float seconds) => _suppressUntil = Time.unscaledTime + Mathf.Clamp(seconds, 0.05f, 2f);
 
@@ -217,6 +299,8 @@ namespace StayPutVR.Trigger
 
         /// <summary>Forget that you were down, so the next downed hit counts as a death again.</summary>
         public static void ClearDown() => _down = false;
+
+        public static void ClearShield() => Shield.Clear();
 
         /// <param name="magnitude">How hard, 0..1. Bites send 1.</param>
         private static bool Fire(string path, string what, float magnitude = 1f)

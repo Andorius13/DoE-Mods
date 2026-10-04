@@ -1,5 +1,58 @@
 # StayPutVR changelog
 
+## 0.5.2 — 2026-10-02 (untested in the headset)
+
+**The staff and life steal stack.** Each staff tick (about one a second) and each life steal now
+adds 2 s on top of whatever shield is left, up to 45 s from now, instead of the staff resetting a
+flat 45 s. The first tick buys 2 s; a minute of beam holds at 45 s, which runs out 45 s after the
+beam stops. Potions still set a length and only ever move the end later. `ShieldStaffSeconds` is
+now seconds per tick (default 2); a cfg still holding 0.5.1's `45` is moved to 2 on load, with a
+console line saying so. New `ShieldStackMaxSeconds` (45) is the cap for both.
+
+**Full health counts.** A potion, a vampire hit, a shield absorb or the Bloodlust ring's heal on a
+kill at a full bar now starts or adds to the shield; before, a heal that gained nothing was
+dropped. The shield absorb and the kill heal skip the game's heal at full health, so the mod
+hooks `Shield.TryShieldAbsorb` and `AvatarPlayer.OnAIKilled` and counts the steal they would have
+made, once, keeping the absorb's one-a-second limit. Logged `heal at full health (life steal: …)`.
+The staff cannot do this: the game will not aim a heal beam at a player at full health (unless
+poisoned or frozen), so nothing reaches your client.
+
+**One staff tick per beam.** A beam seen both by its RPC and by the heal's own frame counts once,
+and a regain tick landing inside the beam's window no longer passes for a second staff tick.
+
+## 0.5.1 — 2026-10-02 (after the first party session with the heal shield; untested in the headset)
+
+**Longer heal shields, one length per heal.** Minor healing potion 10 s, major 20 s, healing staff
+45 s after the beam's last tick, and life steal (shield absorb, vampire perks, the heal on a kill)
+2 s — it was excluded before. `ShieldMinorPotionSeconds`, `ShieldMajorPotionSeconds`,
+`ShieldStaffSeconds` and `ShieldLifeStealSeconds` replace `HealShieldSeconds` (the old line in
+the cfg is no longer read); `0` turns a source off. A heal moves the end to whichever is later,
+never earlier, so life steal cannot cut a longer shield short. A staff beam counts at full health.
+
+**Staff beam diagnostics.** The beam's own RPC is now watched too: `staff beam on you from actor N
+(kinetic type T)` once per run of beams, `but no heal followed` if the heal never arrives, and a
+count when it stops. A heal within 0.75 s of the beam counts as the staff's. The staff detection
+itself was already working — the friend it missed had disarmed, and the cue is armed-only; a
+shield started while disarmed is now logged `heal shield not shown: disarmed`.
+
+**The cue** is a little brighter and thicker and flashes briefly as it appears.
+
+## 0.5.0 — 2026-09-28 (after the game's 2026-09-27 update; untested in the headset)
+
+**Heal shield.** For `HealShieldSeconds` (5) after a healing potion or a healing staff heals you,
+hits do not shock; each one is logged `held back: heal shield, … s left`. Life steal (shield
+absorb, vampire perks, heal on a kill), revives and the game's own regain do not count. The killing
+blow still fires. While it is up and armed, a faint arc low in the headset view shortens as it runs
+out, and the panel shows the time left.
+
+**Old-app warning.** A session fired 17 of 61 hits: the installed app predated 1.5.2, which drops
+every float under 0.5 and never answers OSC Query. After ten unanswered questions the panel now
+warns in amber and the log says so once.
+
+**Severity against the right max.** The update added an overheal bonus to max health, and
+`normalizedHP` now divides by the max with it; the share of a hit now uses the same max
+(`GetMaxHP`) instead of the base `maxHP` field. `DarkLight` is a new damage type.
+
 ## 0.4.0 — 2026-09-12 (OSC Query discovery; untested in the headset)
 
 **The port is found, not configured.** The StayPutVR app advertises its receive port over OSC

@@ -27,6 +27,13 @@ namespace StayPutVR
         public static MelonPreferences_Entry<float> CooldownSeconds;
         public static MelonPreferences_Entry<int> MaxPerMinute;
         public static MelonPreferences_Entry<string> IgnoreDamageTypes;
+        public static MelonPreferences_Entry<float> ShieldMinorPotionSeconds;
+        public static MelonPreferences_Entry<float> ShieldMajorPotionSeconds;
+        public static MelonPreferences_Entry<float> ShieldStaffSeconds;
+        public static MelonPreferences_Entry<float> ShieldLifeStealSeconds;
+        public static MelonPreferences_Entry<float> ShieldStackMaxSeconds;
+        /// <summary>True when Load moved a 0.5.1 <c>ShieldStaffSeconds</c> of 45 to the new per-tick default.</summary>
+        public static bool StaffSecondsMigrated;
 
         public static MelonPreferences_Entry<bool> BiteEnabled;
         public static MelonPreferences_Entry<bool> BiteVictimEnabled;
@@ -69,13 +76,20 @@ namespace StayPutVR
             MinDamageFraction = Main.CreateEntry("MinDamageFraction", 0f);
             CooldownSeconds = Main.CreateEntry("CooldownSeconds", 2f);
             MaxPerMinute = Main.CreateEntry("MaxPerMinute", 15, description: "Max triggers per rolling minute. 0 = no limit.");
-            IgnoreDamageTypes = Main.CreateEntry("IgnoreDamageTypes", "", description: "Comma-separated types that never fire: Melee, Projectile, Magic, Splash, Kinetics, Fall, Trap, Poison, Other, Web, Wraith, Fire, Ice, LastChanceFailed, Devour, GeoCollision, Mimic, PvP.");
+            IgnoreDamageTypes = Main.CreateEntry("IgnoreDamageTypes", "", description: "Comma-separated types that never fire: Melee, Projectile, Magic, Splash, Kinetics, Fall, Trap, Poison, Other, Web, Wraith, Fire, Ice, LastChanceFailed, Devour, GeoCollision, Mimic, PvP, DarkLight.");
+            ShieldMinorPotionSeconds = Main.CreateEntry("ShieldMinorPotionSeconds", 10f, description: "Heal shield: no shocks for this long after each kind of heal. 0 turns that kind off; the killing blow always fires.");
+            ShieldMajorPotionSeconds = Main.CreateEntry("ShieldMajorPotionSeconds", 20f);
+            ShieldStaffSeconds = Main.CreateEntry("ShieldStaffSeconds", 2f, description: "Added per beam tick (about one a second), up to ShieldStackMaxSeconds.");
+            ShieldLifeStealSeconds = Main.CreateEntry("ShieldLifeStealSeconds", 2f, description: "Added per steal (shield absorb, vampire perks, Bloodlust ring on a kill), up to ShieldStackMaxSeconds.");
+            ShieldStackMaxSeconds = Main.CreateEntry("ShieldStackMaxSeconds", 45f, description: "Most the staff and life steal can stack up to.");
+            // 0.5.1 wrote 45 here as a flat length; as a per-tick amount that would be the whole cap at once.
+            if (ShieldStaffSeconds.Value == 45f) { ShieldStaffSeconds.Value = 2f; StaffSecondsMigrated = true; }
 
             BiteEnabled = Main.CreateEntry("BiteEnabled", true);
             BiteVictimEnabled = Main.CreateEntry("BiteVictimEnabled", true);
             BitePath = Main.CreateEntry("BitePath", "/avatar/parameters/SPVR_Bite");
             BiteDamage = Main.CreateEntry("BiteDamage", 1f);
-            BiteDamageType = Main.CreateEntry("BiteDamageType", "Melee", description: "Melee, Projectile, Magic, Splash, Kinetics, Fall, Trap, Poison, Other, Web, Wraith, Fire, Ice, Devour, GeoCollision, Mimic, PvP.");
+            BiteDamageType = Main.CreateEntry("BiteDamageType", "Melee", description: "Melee, Projectile, Magic, Splash, Kinetics, Fall, Trap, Poison, Other, Web, Wraith, Fire, Ice, Devour, GeoCollision, Mimic, PvP, DarkLight.");
             BiteMaxPerMinute = Main.CreateEntry("BiteMaxPerMinute", 6);
             BiteJawParam = Main.CreateEntry("BiteJawParam", "");
             BiteOpenThreshold = Main.CreateEntry("BiteOpenThreshold", 0.55f);

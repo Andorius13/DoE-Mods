@@ -4,8 +4,7 @@ namespace StayPutVR.Trigger
 {
     /// <summary>
     /// How hard a hit should shock, as a magnitude from 0 to 1 for the StayPutVR app's float
-    /// Shock parameter (app 1.5.2 and up). The app scales the shock between its configured
-    /// intensity, at 0, and its configured max, at 1.
+    /// Shock parameter (app 1.5.2 and up), which fires at that fraction of its Shock max.
     ///
     /// The measure is the share of what you had left: a hit for a tenth of your health at full
     /// health is a tenth, the same hit with a fifth of your health left is half, and any hit

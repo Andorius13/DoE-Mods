@@ -10,8 +10,8 @@ namespace StayPutVR
     /// <summary>
     /// Guarded Harmony patching, carried over from LootOverhaul. IL2CPP folds every method
     /// with an identical body into one native function, so an empty method shares its address
-    /// with thousands of others (dump.cs RVA 0x35FC20); patching one patches all of them and
-    /// the process dies. Every target's native pointer is therefore read and compared against
+    /// with thousands of others (RVA 0x42A210 since the 2026-09-27 update, 0x35FC20 before);
+    /// patching one patches all of them and the process dies. Every target's native pointer is therefore read and compared against
     /// a known empty method and against everything already patched before the patch goes in.
     ///
     /// Like the VisualCues copy this one takes an exact <see cref="MethodInfo"/> rather than a
@@ -34,7 +34,8 @@ namespace StayPutVR
             _harmony = harmony;
             try
             {
-                // WeaponFactory.Init() is an empty body (dump.cs RVA 0x35FC20, the shared stub).
+                // WeaponFactory.Init() is an empty body, so its address is the shared stub's
+                // (0x42A210 in the 2026-09-27 build). Read at runtime, so an update can move it.
                 _stubPointer = NativePointerByName(typeof(Il2Cpp.WeaponFactory), "Init", 0);
                 _guardReady = _stubPointer != IntPtr.Zero;
                 if (!_guardReady) Failed.Add("stub-address guard: could not resolve WeaponFactory.Init — refusing ALL patches (fail closed)");

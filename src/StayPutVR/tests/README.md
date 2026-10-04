@@ -28,12 +28,23 @@ answer (below) parsed with its compression pointers followed, the SRV port and A
 another instance name or service type refused, every truncation of it refused without throwing;
 and the discovery thread against a fake app on loopback that answers the way the real one does —
 found within a few seconds, the `Port` fallback until then, dropped after silence, picked up again
-on a new port, a move noticed, another OSC app's answer ignored, a dead target silent. Each state
-change is checked to log exactly once.
+on a new port, a move noticed, another OSC app's answer ignored, a dead target silent and, after
+enough unanswered questions, flagged as a possible pre-1.5.2 app — but never an app that has
+answered once. Each state change is checked to log exactly once.
 
 And `Severity`, the pure function behind the float Shock value: the README's worked table, the
 ordering chip < low chip < fatal, the fall floor, a curve of 1 being linear and 0 being treated
 as 1, never sending zero for a hit, and monotonic from a full bar.
+
+And `HealShield`, the timing behind the heal shield: the time left and the share counting down,
+ending exactly on time, the killing blow never held, a potion's later end winning and an earlier
+one changing nothing; staff ticks and life steal stacking 2 s at a time from the running end
+(eleven ticks a second apart leave 12 s), held at the 45 s cap and topped back up a second later,
+adding on top of a potion's shield but never shortening one that runs past the cap, a cap under
+one tick counting as one tick; 0 seconds starting nothing, and the potion size from `Prop.Type`.
+`StaffBeam`: a heal within 0.75 s of a beam counts as the staff's, each beam claimed once so a
+second heal in its window cannot take another tick, a beam no heal follows is reported once per
+episode, 3 s of quiet ends the episode, and a non-heal kinetic beam covers nothing.
 
 `Stubs.cs` is the minimum host the Osc/ files need outside the game: a logger, the session log,
 and `UnityEngine.Time.unscaledTime`. Nothing under test is reimplemented there.

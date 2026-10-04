@@ -6,7 +6,7 @@ using StayPutVR.Net;
 using StayPutVR.Osc;
 using StayPutVR.Trigger;
 
-[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.4.0", "Foxipso")]
+[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.5.2", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace StayPutVR
@@ -36,13 +36,16 @@ namespace StayPutVR
     /// and the bite; a player without the mod, or with bites switched off, cannot be damaged or
     /// shocked by any of it. Both bite switches are off by default.
     ///
+    /// A healing potion, a healing staff or life steal buys a while in which hits do not shock, shown in the
+    /// headset as a faint arc low in the view (<see cref="ShieldCue"/>) — the one thing drawn there.
+    ///
     /// Nothing is written to the game's profile. There is no mod gate: without biting the mod
     /// changes nothing any other player can observe, and biting has its own consent check that a
     /// gate would only duplicate.
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.4.0";
+        public const string Version = "0.5.2";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -63,8 +66,12 @@ namespace StayPutVR
             LoggerInstance.Msg($"StayPutVR {Version} — a hit fires {ModConfig.ShockPath.Value} at the StayPutVR app, found over OSC Query; until it is, at {ModConfig.Host.Value}:{ModConfig.Port.Value}. Logs in {ModPaths.LogDir}");
             LoggerInstance.Msg("Click BOTH thumbsticks in: a moment disarms, a second and a half arms. There are no keyboard keys.");
 
+            if (ModConfig.StaffSecondsMigrated)
+                LoggerInstance.Msg("ShieldStaffSeconds was 45 (0.5.1's flat length); it is now seconds added per beam tick, so it was set to 2. ShieldStackMaxSeconds caps the total.");
+
             Hooks.Init(HarmonyInstance);
             DamageWatch.Install();
+            HealWatch.Install();
             Hooks.Report();
 
             PhotonHook.Install(HarmonyInstance);
@@ -94,6 +101,8 @@ namespace StayPutVR
             Discovery.Pump();
             ShockPolicy.Tick();
             VrToggle.Tick();
+            HealWatch.Tick();
+            ShieldCue.Tick();
             BiteNet.Pump();
             BiteSense.Tick();
         }
@@ -110,6 +119,8 @@ namespace StayPutVR
             BiteNet.Clear($"scene changed to {sceneName}");
             // A new scene means a new body; nobody arrives in it already down.
             ShockPolicy.ClearDown();
+            ShockPolicy.ClearShield();
+            HealWatch.Clear();
         }
 
         private static bool _quit;
@@ -123,7 +134,7 @@ namespace StayPutVR
             // flushes a pending release, and the flush covers the already-disarmed case.
             if (ModConfig.Enabled.Value) ShockPolicy.SetArmed(false, "quitting");
             ShockPolicy.FlushRelease();
-            ShockLog.Headline($"Quit. {ShockPolicy.Stats()}; {Discovery.Stats()}; {DamageWatch.Stats()}; {BiteSense.Describe()}; {JawWatch.Describe()}; {BiteNet.Stats()}; panel {StatusHud.Describe()}.");
+            ShockLog.Headline($"Quit. {ShockPolicy.Stats()}; {Discovery.Stats()}; {DamageWatch.Stats()}; {HealWatch.Stats()}; {BiteSense.Describe()}; {JawWatch.Describe()}; {BiteNet.Stats()}; panel {StatusHud.Describe()}.");
             Discovery.Stop();
             ShockLog.Close();
             OscSender.Close();

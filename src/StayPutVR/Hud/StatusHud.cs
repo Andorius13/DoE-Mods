@@ -31,7 +31,11 @@ namespace StayPutVR.Hud
         private static readonly Color TroubleColor = new Color(1.00f, 0.78f, 0.20f);
 
         private static GUIStyle _centre, _state;
+        private static readonly Color ShieldColor = new Color(0.60f, 0.90f, 1.00f);
+
         private static readonly List<string> Lines = new List<string>(16);
+        /// <summary>Drawn right under the state line in their own colour: the heal shield, the old-app warning.</summary>
+        private static readonly List<(string text, Color color)> Notes = new List<(string, Color)>(4);
         private static bool _drawn;
 
         private static void EnsureStyles()
@@ -49,7 +53,7 @@ namespace StayPutVR.Hud
             const int width = Width;
             BuildLines(out var state, out var stateColor);
 
-            var height = Pad * 2 + TitleHeight + (Lines.Count + 1) * LineHeight;
+            var height = Pad * 2 + TitleHeight + (Lines.Count + Notes.Count + 1) * LineHeight;
             var rect = new Rect(Screen.width - width - Pad, Pad, width, height);
 
             GUI.Box(rect, "");
@@ -62,8 +66,14 @@ namespace StayPutVR.Hud
             var wasColor = GUI.contentColor;
             GUI.contentColor = stateColor;
             GUI.Label(new Rect(rect.x + Pad, y, width - Pad * 2, LineHeight + 4), state, _state);
-            GUI.contentColor = wasColor;
             y += LineHeight;
+            foreach (var (text, color) in Notes)
+            {
+                GUI.contentColor = color;
+                GUI.Label(new Rect(rect.x + Pad, y, width - Pad * 2, LineHeight + 4), text);
+                y += LineHeight;
+            }
+            GUI.contentColor = wasColor;
 
             foreach (var line in Lines)
             {
@@ -82,6 +92,16 @@ namespace StayPutVR.Hud
             stateColor = armed ? ArmedColor : DisarmedColor;
 
             Lines.Clear();
+            Notes.Clear();
+            var now = Time.unscaledTime;
+            if (ShockPolicy.Shield.Active(now))
+                Notes.Add(($"Heal shield: {ShockPolicy.Shield.Left(now):0.0} s left ({ShockPolicy.Shield.Source}) — hits do not fire", ShieldColor));
+            if (Discovery.NeverAnswered)
+            {
+                // OSC Query off in the app looks the same from here, hence the "if".
+                Notes.Add(("Nothing answers over OSC Query. If the app is older than 1.5.2,", TroubleColor));
+                Notes.Add(("it drops every hit under half strength: install 1.5.2.", TroubleColor));
+            }
             Lines.Add($"Link: {OscSender.TargetDescription} ({Discovery.Describe()})   {ShockPolicy.PathSummary()}");
             Lines.Add($"Limits: {ShockPolicy.LimitSummary()}");
 
