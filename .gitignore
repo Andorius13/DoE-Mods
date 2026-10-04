@@ -43,3 +43,9 @@ Assets/DoEExport_Temp.meta
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Python bytecode
+__pycache__/
+
+# Dumps of other game builds, kept beside dump/ for diffing (e.g. dump-0928/)
+dump-*/
