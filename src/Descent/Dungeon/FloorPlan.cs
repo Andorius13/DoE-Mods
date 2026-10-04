@@ -97,7 +97,8 @@ namespace Descent.Dungeon
             {
                 builder.enableLogging = ModConfig.BuilderLogging.Value;
                 InitBuilderHook.Pending = spec;
-                var routine = builder.GenerateLayout(dungeon, ModConfig.BuilderLogging.Value);
+                // The tier picks the layout (and so the floor's length); the default -1 would draw from every tier.
+                var routine = builder.GenerateLayout(dungeon, ModConfig.BuilderLogging.Value, spec.Tier);
                 builder.StartCoroutine(routine);
                 launched = true;
             }

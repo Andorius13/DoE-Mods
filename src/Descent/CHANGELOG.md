@@ -1,5 +1,19 @@
 # Descent changelog
 
+## 0.1.1 — 2026-09-28 (game update, untested)
+
+The 2026-09-27 game update removed `MissionLength` and the per-difficulty gen settings:
+`DungeonLayoutDef` now carries one `genSettings`, one `mainPath` and a difficulty-tier range, and
+`InitBuilder(refs, mode, realm, int _difficultyTier, hazards, seed)` keeps the layouts whose range
+holds the tier (tier < 0, or none in range, skips the filter; disassembly of
+`<InitBuilder>g__GatherLayouts`). `InitBuilderHook` now pins `_difficultyTier` to the floor's tier
+for the floor's seed, and `FloorPlan.Validate` passes the tier to `GenerateLayout` (its default,
+-1, would check a layout from any tier). `FloorSpec.Length` and the length ramp are gone.
+Hotkeys ported from `UnityEngine.Input` (throws under the Input System) to `Keyboard.current`
+(`Hotkeys.cs`). `ReturnToLobby`, `MissionSuccess` and the stub guard re-checked against the new
+dump (own addresses; the empty-method stub moved from 0x35FC20 to 0x42A210, the guard reads it at
+runtime). Realm 6 (Crypts, new) has a name; the realm bands still use 0–3.
+
 ## 0.1.0 — 2026-09-07 (untested)
 
 First build. A run is a seed; sixteen floors in seed-shuffled realm bands, tier rising every

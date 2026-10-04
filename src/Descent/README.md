@@ -1,4 +1,4 @@
-# Descent 0.1.0 — a sixteen-floor dungeon out of the game's own generator
+# Descent 0.1.1 — a sixteen-floor dungeon out of the game's own generator
 
 A fourth, independent MelonLoader mod. The investigation and the design decisions are in
 [docs/DUNGEON-DESCENT.md](../../docs/DUNGEON-DESCENT.md); this page is what the build does and
@@ -9,8 +9,8 @@ how to test it.
 A **run** is a seed and a name. Each **floor** is a vanilla-generated dungeon — the game's
 own `DungeonBuilder` on the game's own mission object — launched through the game's own
 launch coroutine, in a realm band (four floors per realm, order shuffled by the seed), at a
-tier that rises every two floors from tier 1, with the difficulty setting, mission length and
-hazard level stepping up behind it and a boss battle on floor 16.
+tier that rises every two floors from tier 1 (the tier also picks the layout, and with it how
+long the floor is), with the difficulty setting and hazard level stepping up behind it and a boss battle on floor 16.
 
 - **The exit goes down.** Everyone on the pads → the game's `MissionSuccess` fires as usual
   → its `ReturnToLobby` is caught by the mod → the floor is banked, the run advanced, the
@@ -77,19 +77,30 @@ What to grep afterwards, in `MelonLoader/Latest.log` and the recon file:
 - `Launching floor` and either `GameManager.LoadDungeon called` (vanilla launch coroutine)
   or `manual launch:` (the delegate could not be converted; the mod's copy ran).
 - `Floor generated:` — rooms, hazards, tier, and the room list.
-- `InitBuilder:` — the floor length override applied on the host's generation.
+- `InitBuilder:` — `layout tier X -> Y`, the floor's tier pinned for the layout pick (host generation and the lobby validation pass).
 - `Banking floor` section — profile XP before/after and the party stats line; `Banked floor`.
 - `resetting stale MissionEndState` — whether the end-state reset was needed.
 - `SCENE Initialized twice` in `Player.log` — would mean the same-scene reload tripped the
   game's guard.
+
+## 0.1.1 — the 2026-09-27 game update
+
+- The game dropped mission length: each dungeon layout now has one main path and a
+  difficulty-tier range, and `DungeonBuilder.InitBuilder` lost its `MissionLength` parameter and
+  takes an `int` tier instead of the `Difficulty` (0.1.0 no longer compiled, and the deployed
+  0.1.0 logged `FAILED: DungeonBuilder.InitBuilder`). The hook now pins that tier to the floor's,
+  and the lobby validation pass asks for the floor's tier, so it checks the same kind of layout
+  the host will build. The short/medium/long ramp is gone; deeper tiers are the longer floors.
+- The game switched to the Input System package, so the Backspace / End / Slash keys threw every
+  frame (`Hotkey threw`, most of a 600 MB log). They read `Keyboard.current` now.
 
 ## Known gaps in 0.1.0
 
 - Untested in a headset; every step is logged for that reason.
 - The last floor's rewards go through the vanilla hub path (they are banked, just later).
 - No cleared-room memory on resume; no quest objectives yet (the run record has the slot).
-- Longer/branchier floors: the seam is in place (`InitBuilderHook`), the knobs are not
-  turned yet.
+- Longer/branchier floors: the seam is in place (`InitBuilderHook`, now the tier), the knobs
+  are not turned yet.
 - The board is a panel; the doorway with a staircase comes later.
 - LootOverhaul's own loot save path (`GetEarnedLoot`) has not been checked against per-floor
   banking with both mods on.

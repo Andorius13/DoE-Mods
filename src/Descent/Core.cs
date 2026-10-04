@@ -7,7 +7,7 @@ using Descent.Hub;
 using Descent.Net;
 using Descent.Recon;
 
-[assembly: MelonInfo(typeof(Core), "Descent", "0.1.0", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "Descent", "0.1.1", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace Descent
@@ -25,7 +25,7 @@ namespace Descent
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.0";
+        public const string Version = "0.1.1";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -87,12 +87,12 @@ namespace Descent
             if (!ModConfig.HotkeysEnabled.Value) return;
             try
             {
-                if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Backspace))
+                if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.Backspace))
                 {
                     if (Il2Cpp.GameManager.IsLobbyScene) Launcher.StartNew();
                     else if (_scene == FloorPlan.DungeonScene) Descender.ForceDescend();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.End))
+                else if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.End))
                 {
                     if (Il2Cpp.GameManager.IsLobbyScene)
                     {
@@ -102,7 +102,7 @@ namespace Descent
                     }
                     else if (_scene == FloorPlan.DungeonScene) Descender.ForceSurface();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Slash)) Board.PlaceHere();
+                else if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.Slash)) Board.PlaceHere();
             }
             catch (Exception e) { LoggerInstance.Warning($"Hotkey threw: {e.GetType().Name}: {e.Message}"); }
         }

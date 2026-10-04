@@ -71,7 +71,6 @@ namespace Descent.Run
                 Realm = RealmFor(index),
                 Tier = Ramp.TierFor(index),
                 Difficulty = Ramp.DifficultyFor(index),
-                Length = Ramp.LengthFor(index),
                 HazardLevel = Ramp.HazardLevelFor(index),
                 IsLast = index == Floors - 1,
             };
@@ -115,12 +114,10 @@ namespace Descent.Run
         public int Seed;
         /// <summary>Il2Cpp.Realm value 0–3.</summary>
         public int Realm;
-        /// <summary>TierOverride 0–6 (the scanner calls these Tier 1–7).</summary>
+        /// <summary>TierOverride 0–6 (the scanner calls these Tier 1–7). Also picks the layout, so the floor length (InitBuilderHook).</summary>
         public int Tier;
         /// <summary>Il2Cpp.Difficulty: 100 Easy, 200 Medium, 300 Hard, 400 Nightmare.</summary>
         public int Difficulty;
-        /// <summary>Il2Cpp.MissionLength: 100 Short, 200 Medium, 300 Long.</summary>
-        public int Length;
         /// <summary>GameManager.HazardLevel 0–3.</summary>
         public int HazardLevel;
         public bool IsLast;
@@ -130,7 +127,7 @@ namespace Descent.Run
         [JsonIgnore] public string RealmName => Ramp.RealmName(Realm);
 
         public string Describe() =>
-            $"floor {Number}/{Floors} — {RealmName}, tier {Tier + 1}, {Ramp.DifficultyName(Difficulty)}, {Ramp.LengthName(Length)}, hazard L{HazardLevel}{(Boss ? ", BOSS" : "")}, seed {Seed}";
+            $"floor {Number}/{Floors} — {RealmName}, tier {Tier + 1}, {Ramp.DifficultyName(Difficulty)}, hazard L{HazardLevel}{(Boss ? ", BOSS" : "")}, seed {Seed}";
     }
 
     /// <summary>The difficulty curve, as a table over the floor index. Tune here, not in the launcher.</summary>
@@ -145,17 +142,14 @@ namespace Descent.Run
 
         public static int DifficultyFor(int index) => index < 4 ? 100 : index < 8 ? 200 : index < 12 ? 300 : 400;
 
-        public static int LengthFor(int index) => index < 4 ? 100 : index < 10 ? 200 : 300;
-
         public static int HazardLevelFor(int index) => index < 4 ? 0 : index < 9 ? 1 : index < 13 ? 2 : 3;
 
         public static string RealmName(int realm) => realm switch
         {
-            0 => "Underworld", 1 => "Sandstorm", 2 => "Vilehalls", 3 => "Lava Forge",
+            0 => "Underworld", 1 => "Sandstorm", 2 => "Vilehalls", 3 => "Lava Forge", 6 => "Crypts",
             4 => "Frostbound", 5 => "Stormgrave", _ => $"realm {realm}"
         };
 
         public static string DifficultyName(int d) => d switch { 100 => "easy", 200 => "medium", 300 => "hard", 400 => "nightmare", _ => d.ToString() };
-        public static string LengthName(int l) => l switch { 100 => "short", 200 => "medium", 300 => "long", _ => l.ToString() };
     }
 }

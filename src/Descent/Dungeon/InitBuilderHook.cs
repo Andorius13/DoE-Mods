@@ -7,13 +7,17 @@ using Realm = Il2CppOthergate.Biome.Realm;
 namespace Descent.Dungeon
 {
     /// <summary>
-    /// A mission object carries realm, mode, difficulty and hazards but no length; the builder
-    /// takes that from its own <c>buildForLength</c>. <c>DungeonBuilder.InitBuilder</c> is where
-    /// the two meet (its callers into <c>GetMainPath</c>/<c>GetGenSettings</c> are inlined, so
-    /// this is the one seam), and this prefix is where a floor's length is applied — and where
-    /// a later build can lengthen or widen floors by editing the layout asset. Only the client
-    /// that generates (the host) ever runs it for a live floor; the lobby validation pass runs
-    /// it on whoever validates.
+    /// <c>DungeonBuilder.InitBuilder</c> picks the floor's <c>DungeonLayoutDef</c>, and with it the
+    /// main path (how long the floor is) and the one set of gen settings (how branchy). Since the
+    /// 2026-09-27 game update there is no mission length and no per-difficulty gen settings: every
+    /// layout carries one main path and a difficulty-tier range, and <c>InitBuilder(refs, mode,
+    /// realm, _difficultyTier, hazards, seed)</c> keeps only the layouts whose range contains the
+    /// tier (a tier below zero, or no layout in range, skips the filter). So the tier is the
+    /// length knob now, and this prefix pins it to the floor's tier. The live generation already
+    /// passes <c>GameManager.DifficultyTier</c>, which the launcher sets; the lobby validation pass
+    /// (<c>GenerateLayout</c>, tier -1 by default) would otherwise check a layout drawn from every
+    /// tier. Only the client that generates (the host) runs it for a live floor; the validation
+    /// pass runs it on whoever validates.
     /// </summary>
     public static class InitBuilderHook
     {
@@ -25,13 +29,13 @@ namespace Descent.Dungeon
         public static void Install()
         {
             Hooks.Patch(typeof(DungeonBuilder), "InitBuilder",
-                Hooks.Of(typeof(InitBuilderHook), nameof(InitBuilder_Prefix)), null, paramCount: 7);
+                Hooks.Of(typeof(InitBuilderHook), nameof(InitBuilder_Prefix)), null, paramCount: 6);
         }
 
         private static FloorSpec Current() => Pending ?? RunSync.Floor;
 
-        private static void InitBuilder_Prefix(DungeonBuilder __instance, GameMode _gameMode, Realm _realm, Difficulty _difficulty,
-                                               ref MissionLength _missionLength, int _randomSeed)
+        private static void InitBuilder_Prefix(DungeonBuilder __instance, GameMode _gameMode, Realm _realm,
+                                               ref int _difficultyTier, int _randomSeed)
         {
             try
             {
@@ -43,10 +47,10 @@ namespace Descent.Dungeon
                     ReconLog.Line($"InitBuilder for another dungeon (mode {_gameMode}, seed {_randomSeed}); floor spec seed {spec.Seed} not applied.");
                     return;
                 }
-                var was = _missionLength;
-                _missionLength = (MissionLength)spec.Length;
+                var was = _difficultyTier;
+                _difficultyTier = spec.Tier;
                 Applied++;
-                ReconLog.Line($"InitBuilder: floor {spec.Number} realm {_realm} diff {_difficulty} seed {_randomSeed}: length {was} -> {_missionLength}");
+                ReconLog.Line($"InitBuilder: floor {spec.Number} realm {_realm} seed {_randomSeed}: layout tier {was} -> {_difficultyTier}");
             }
             catch (Exception e) { Core.Log.Warning($"InitBuilder prefix threw: {e.GetType().Name}: {e.Message}"); }
         }
