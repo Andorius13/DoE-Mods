@@ -451,8 +451,16 @@ namespace CustomAvatars.Avatars
                 if (!Interop.Alive(input)) { Core.Log.Warning("    hand input: XRInput.Instance is null — fingers cannot move."); return; }
                 var typeName = HierarchyDump.TypeName(input);
                 var probe = input.GetFingerCurls(Handedness.Right, true);
+                // Both new in the 2026-09-27 update: whether this backend claims real per-finger
+                // curls, and the game's own switch for using them. Said here so a session with
+                // fingers that never move can be told apart from one whose backend has none.
+                var has = "?";
+                var enabled = "?";
+                try { has = input.HasFingerCurls.ToString(); } catch { }
+                try { enabled = XRInput.FingerTrackingEnabled.ToString(); } catch { }
                 Core.Log.Msg($"    hand input: {typeName}, GetFingerCurls returned " +
                              (probe == null ? "null" : $"{probe.Length} value(s)") +
+                             $", HasFingerCurls {has}, FingerTrackingEnabled {enabled}" +
                              $"; grip axis reads {input.rightHandTrigger:0.00}");
             }
             catch (Exception e) { Core.Log.Warning($"    hand input probe failed: {e.GetType().Name}: {e.Message}"); }

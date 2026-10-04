@@ -89,6 +89,8 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> RebindOnTposeSeconds;
         public static MelonPreferences_Entry<float> RebindGapSeconds;
         public static MelonPreferences_Entry<float> SizeMoveSpeedBlend;
+        public static MelonPreferences_Entry<bool> SizeGroundCastFollowsCapsule;
+        public static MelonPreferences_Entry<bool> FloorProbeEnabled;
 
         public static MelonPreferences_Entry<float> FaceSmoothing;
         public static MelonPreferences_Entry<float> FaceShapeScale;
@@ -299,6 +301,13 @@ namespace CustomAvatars
             // fast. 0 leaves the game alone; 1 makes a half-size player half as fast.
             SizeMoveSpeedBlend = Tuning.CreateEntry("SizeMoveSpeedBlend", 0f, description:
                 "0 to 1: how much your movement speed and jump follow your size (0 = vanilla speed at any size).");
+            // The game hovers your body capsule over the floor on a ground probe that starts at
+            // the capsule's bottom. Scaling the play space moves the capsule's bottom but not the
+            // probe, so a bigger player can come to rest on the capsule with the probe starting
+            // inside the floor: sunk, and caught by every stair lip. See Avatars/FloorProbe.cs.
+            SizeGroundCastFollowsCapsule = Tuning.CreateEntry("SizeGroundCastFollowsCapsule", true, description:
+                "When you are bigger than normal, start the game's ground probe at your scaled body capsule's bottom, " +
+                "as it is at normal size. Off = the game's probe untouched (sinks into the floor after a hard landing).");
 
             FaceSmoothing = Tuning.CreateEntry("FaceSmoothing", 0.5f);
             // Some faces want the whole set toned down.
@@ -375,6 +384,10 @@ namespace CustomAvatars
             // Every transform between the headset and the rig root, at every size change and
             // for eight seconds after. This is what found the spawn-while-scaled bug.
             SizeDebug = Dev.CreateEntry("SizeDebug", false);
+            // `Floor:` lines: the movement capsule against the ground under it, at spawn, scene
+            // load, size change, calibration and the End key; plus a line whenever you sink onto
+            // the capsule or stall against something while pushing the stick.
+            FloorProbeEnabled = Dev.CreateEntry("FloorProbeEnabled", true);
             FbtDebug = Dev.CreateEntry("FbtDebug", false, description:
                 "Log tracker poses and VRIK weights every frame while FBT is on.");
             // The grounder plants feet on the floor procedurally; real foot trackers and a

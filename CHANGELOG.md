@@ -2,6 +2,42 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.10 (2026-10-02)
+
+### Fixed
+- A bigger-than-normal player should no longer end up resting on the body capsule, sunk about 0.2 m into the floor and stopped by every stair lip until they jump (reported 2026-10-02 at x1.15: "my capsule is in the floor", feet in the ground, stuck on staircase edges, and peers saw nothing wrong). Here is how the game keeps you off the floor. `VRPlayerControl` floats the `Body Collider` capsule above a sphere cast that points straight down, and drives `VR Controller` onto the point the cast hits. The cast starts at `VR Controller.y + 0.2625 + suspension + 0.1` in world metres with a 0.2625 m sphere, so it begins exactly at the capsule's bottom (`suspension + 0.1`, 0.2 m). That equality is what lets a capsule that has come down onto the floor recover: the cast still starts just above the floor, finds it, and the suspension lifts you back up. Scaling the play space moves the capsule's bottom to k·0.2 m but leaves the cast where it was. At x1.15, a landing hard enough to outrun the suspension (it keeps a faster fall instead of braking it) leaves the cast starting 2–3 cm inside the floor. A sweep does not see a surface it starts inside, so you stayed down until a jump lifted you clear. The 0.42.8 calibration bracket was working the whole session (`rig held at x1.00 for the call` at every load, with offsets 0.218–0.337 m that match the game's 1.78 m rule), so it was not the cause. Now, when you are bigger than normal, the cast's start is raised by the amount the scale added to the capsule's bottom. That amount is measured from the live capsule every physics step: its bottom in `VR Controller`'s own units, times the scale minus one, which is 0.03 m at x1.15. At AvatarSize 1 and below nothing is written. `SizeGroundCastFollowsCapsule` (Tuning) turns it off. The mechanism comes from the game code, not yet from a headset: the next session's `Floor:` lines confirm or refute it.
+
+### Added
+- `Floor (…)` lines: the movement capsule against the ground under it, at spawn, 3 s and 10 s into each scene, 1.5 s after a size change, 1 s after each height calibration, and on the new **Numpad 5** key (End belongs to Descent). Each line gives the capsule's bottom above the ground and how far it hovers over the floor point, and where it would be at x1. It also gives `VR Controller` against the ground, where the ground cast starts (and by how much it was lifted), the game's `grounded` and `groundDistance`, the eye height above the ground next to the headset's real height, the tracking floor, the calibration offset, `Player_` and `Model_` against the ground, and which collider the ground is. A verdict comes first: `on the suspension`, or `*** SUNK: resting on the capsule`.
+- `Floor: *** SUNK` (a warning) when you have rested on the capsule for half a second, with the last landing before it and how fast you were falling, and `Floor: back on the suspension after N s` when you leave it. These detectors are read-only and run at every size, x1 included, so the two can be compared in one session.
+- `Floor: blocked` when you push the stick and stay put for half a second while grounded. It says what is in front of you, how high it reaches, how far it is from the capsule's axis and where its top is, against the capsule's bottom and radius. `FloorProbeEnabled` (Dev) turns all the `Floor:` lines off.
+- `Floor: VRPlayerControl.UpdateGroundTraceOrigin hooked` at start, `Floor: watching …` with the capsule's and the cast's own numbers when the player appears, and `Floor: ground probe lifted N m at xK` once per size.
+
+## 0.42.9 (2026-09-28)
+
+Follows the game's 2026-09-27 update.
+
+### Fixed
+- The hotkeys work again. The update switched the game's active input handling to Unity's Input System package, and from then on every `UnityEngine.Input` call throws; the first session afterwards logged `Legacy Input unavailable, hotkeys disabled` and had no F4, F10 or anything else. Keys are now read through `Keyboard.current`, by the same names as before (F1–F11, PgUp, PgDn, Home), and anything that goes wrong is logged once.
+- A worn ring sits on your avatar's finger. Rings are new in the update: the ring is parented to the vanilla ring finger, the first-person arms' on your own screen (`EquippableHolster.attachPoint`) and the game body's on everyone else's (`AvatarHolster`, bone `LeftRingProximal` / `RightRingProximal`), and it kept its own renderer on a finger nowhere near the avatar's. It is now placed on the avatar's bone for the same finger every frame, after the fingers are posed: the same distance along the segment, the same roll against the back of the hand, and sized from the vertices skinned to each finger, or by the ratio of segment lengths where a mesh can't be read. Yours, your friends' and the equipment-room mannequin's. An avatar with no bone for that finger has the ring hidden while it is worn. The ring is only moved, never reparented, and gets its own pose back when the avatar comes off.
+- The vanilla body is no longer turned back on when the game hides it. The hide re-applied all three of `enabled`, `forceRenderingOff` and `shadowCastingMode` to their swap-time values every frame, so any hiding of the game's own was undone as soon as it happened, and the two took turns: the first session after the update logged `vanilla mesh hidden (ShadowsOnly)` 41,000 times, in bursts that often begin at a death, against a few dozen per session before it (the update's `DissolveHandler` now switches renderers through `forceRenderingOff`). Only the property the chosen mode hides with is ours now; the other two are the game's. When the game hides a peer's body, their avatar is hidden with it and comes back when the body does. Never yours.
+- A rebuilt character mesh or first-person arm mesh (`RegenerateAvatarMeshFromModules`, `RegenerateFPSArms`, both new) is picked up and hidden rather than left showing beside the avatar.
+- A ring worn before the avatar went on is no longer hidden with the first-person arms.
+- The height-calibration bracket from 0.42.8 also covers the new `SteamFrameRig`, which carries a copy of the same calibration.
+
+### Added
+- `ring:` lines: which ring was found on whose finger, where from and to which avatar bone, how far along the finger, both finger radii and how they were measured; when one is hidden, taken off or handed back.
+- `vanilla mesh: the game set …` names the property the game changed when it puts a hidden body back, then counts repeats every 30 s instead of printing each frame. `vanilla mesh: the game hid …'s body` / `shows …'s body again` when a peer's avatar follows the game's own hiding.
+- The `hand input` line reports the update's new `HasFingerCurls` and `XRInput.FingerTrackingEnabled`.
+
+## 0.42.8 (2026-09-13)
+
+### Fixed
+- A sized player is no longer sunk into the floor by the game's own height calibration. The game puts every player's eyes at 1.78 m: `OpenVRRig.CalibrateHeight` measures the eye height in world metres and writes the correction as a local offset on the camera rig, which is a child of the play space the size feature scales. At x1.15 the measurement was 15 % too big and the write was scaled 15 % again, so every scene load — a dungeon, the lobby on the way back — dropped the tracking floor about 0.26 m below the game floor: feet in the ground, the capsule catching stair lips, and no T-pose could touch it, because the offset lived on the rig for the rest of the run. The 0.40 spawn gate never saw it: the rig and the body survive scene changes, so no new body ever appeared. The calibration is now bracketed: the play space is at its rest scale for that one call and back at your size straight after. At AvatarSize 1 nothing changes.
+
+### Added
+- A `Size: the game re-measured your height` line whenever that calibration runs, with the camera rig's offset before and after, so a wrong height can be pinned to the scene load that caused it.
+
 ## 0.42.7 (2026-09-07)
 
 ### Fixed

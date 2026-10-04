@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.8", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.9", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.42.8";
+        public const string Version = "0.42.10";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -45,6 +45,7 @@ namespace CustomAvatars
         private Fbt.TrackerReader _trackers;
         private Fbt.FbtManager _fbt;
         private PlayerSize _size;
+        private FloorProbe _floor;
         private bool _envDumped;
         private float _hotkeyCooldown;
 
@@ -87,6 +88,11 @@ namespace CustomAvatars
             _size = new PlayerSize(_trackers);
             PlayerSize.InstallHeightCalibrationHook(HarmonyInstance);
             _size.Changed += size => _swaps.OnSelfSizeChanged(size);
+            // The movement capsule against the floor: the ground-probe fix for a sized player,
+            // and the `Floor:` lines that show where the capsule really is. Avatars/FloorProbe.cs.
+            _floor = new FloorProbe(_trackers);
+            FloorProbe.Install(HarmonyInstance);
+            _size.Changed += size => FloorProbe.Request($"size x{size:0.00}", 1.5f);
             if (Math.Abs(PlayerSize.Wanted() - 1f) > 0.0005f)
                 LoggerInstance.Msg($"Size: AvatarSize is {PlayerSize.Wanted():0.00} — you will be that size once you have spawned. Home puts it back to 1.");
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
@@ -115,6 +121,7 @@ namespace CustomAvatars
             }
 
             _avatars.Reset();
+            _floor?.OnScene(sceneName);
         }
 
         public override void OnUpdate()
@@ -130,6 +137,7 @@ namespace CustomAvatars
             // Size first: this frame's tracker poses, IK targets and avatar fit must all see
             // the play space at the size settled on, not last frame's.
             _size?.Tick();
+            _floor?.Tick();
 
             // Before the game's LateUpdate, where FinalIK solves: tracker targets set here are
             // where this frame's legs land. After Pump, so a peer's poses land the same frame.
@@ -215,57 +223,60 @@ namespace CustomAvatars
         /// <summary>
         /// Desktop keys for on-demand dumps. In VR the game window still receives them when
         /// focused, which is enough for a "do that again now that I'm standing somewhere
-        /// interesting" workflow. Legacy Input throws outright under the new Input System;
-        /// if that happens we log once and stop asking.
+        /// interesting" workflow.
+        ///
+        /// Read through the Input System package. The 2026-09-27 update switched the game's
+        /// active input handling over to it, and from then on every `UnityEngine.Input` call
+        /// throws — the first session after the update logged "Legacy Input unavailable" and
+        /// had no F4 at all. See <see cref="Hotkeys"/>.
         /// </summary>
-        private bool _hotkeysDead;
-
         private void PollHotkeys()
         {
-            if (_hotkeysDead || !ModConfig.HotkeysEnabled.Value) return;
+            if (!ModConfig.HotkeysEnabled.Value) return;
+            if (!Hotkeys.BeginFrame()) return;
             if (_hotkeyCooldown > 0f) { _hotkeyCooldown -= UnityEngine.Time.unscaledDeltaTime; return; }
 
             try
             {
-                if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F7))
+                if (Hotkeys.Down("F7"))
                 {
                     _hotkeyCooldown = 0.5f;
                     EnvironmentRecon.DumpOnce(force: true);
                     DumpFaceParameters();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F8))
+                else if (Hotkeys.Down("F8"))
                 {
                     _hotkeyCooldown = 0.5f;
                     _avatars.DumpEverythingNow();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F9))
+                else if (Hotkeys.Down("F9"))
                 {
                     _hotkeyCooldown = 0.5f;
                     _photon.DumpRoomNow();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F6))
+                else if (Hotkeys.Down("F6"))
                 {
                     _hotkeyCooldown = 0.5f;
                     _preview.Toggle();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F4))
+                else if (Hotkeys.Down("F4"))
                 {
                     _hotkeyCooldown = 0.5f;
                     // Peers are told by AvatarSwapManager.SelfAvatarChanged, which also covers
                     // taking the avatar off and putting it back on after a scene change.
                     _swaps.ToggleSelf();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F5))
+                else if (Hotkeys.Down("F5"))
                 {
                     _hotkeyCooldown = 0.5f;
                     _avatarLibrary.Rescan();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F1))
+                else if (Hotkeys.Down("F1"))
                 {
                     _hotkeyCooldown = 0.5f;
                     Overlay.Visible = !Overlay.Visible;
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F2))
+                else if (Hotkeys.Down("F2"))
                 {
                     _hotkeyCooldown = 0.5f;
                     var next = _avatarLibrary.CycleSelection();
@@ -273,35 +284,41 @@ namespace CustomAvatars
                         ? "No avatars installed to choose from."
                         : $"*** Avatar selected: {next} — press F4 twice to put it on.");
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F10))
+                else if (Hotkeys.Down("F10"))
                 {
                     // Refusing (fewer than 3 trackers) still writes the full recon dump, so
                     // F10 with no pucks on doubles as the tracker diagnostics key.
                     _hotkeyCooldown = 0.5f;
                     _fbt.Toggle();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F11))
+                else if (Hotkeys.Down("F11"))
                 {
                     _hotkeyCooldown = 0.5f;
                     _fbt.StartCalibration();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageUp))
+                else if (Hotkeys.Down("PageUp"))
                 {
                     // Short cooldown: these are held-and-tapped keys, not one-shot dumps.
                     _hotkeyCooldown = 0.12f;
                     _size.Nudge(+1);
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageDown))
+                else if (Hotkeys.Down("PageDown"))
                 {
                     _hotkeyCooldown = 0.12f;
                     _size.Nudge(-1);
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Home))
+                else if (Hotkeys.Down("Home"))
                 {
                     _hotkeyCooldown = 0.5f;
                     _size.ResetToVanilla();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F3))
+                else if (Hotkeys.Down("Keypad5"))
+                {
+                    // Where your movement capsule is against the floor, right now.
+                    _hotkeyCooldown = 0.5f;
+                    FloorProbe.Request("Numpad5 key", 0f);
+                }
+                else if (Hotkeys.Down("F3"))
                 {
                     // Re-read MelonPreferences.cfg from disk. The spring constants are read
                     // per frame, so edit-save-F3 retunes a spawned avatar with no respawn.
@@ -323,8 +340,9 @@ namespace CustomAvatars
             }
             catch (Exception e)
             {
-                _hotkeysDead = true;
-                LoggerInstance.Warning($"Legacy Input unavailable, hotkeys disabled: {e.Message}");
+                // A handler that throws is a bug in that handler, not in the keyboard: say so
+                // and carry on, rather than taking every other key down with it.
+                LoggerInstance.Warning($"Hotkey handler threw: {e.GetType().Name}: {e.Message}");
             }
         }
 

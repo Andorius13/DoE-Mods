@@ -40,6 +40,7 @@ namespace CustomAvatars.Avatars
             public SpringBones Springs;
             public Face.FaceDriver Face;
             public HandPoser Hands;
+            public RingFollower Rings;
             public string AvatarName;
             /// <summary>The avatar's own scale (prefab root times suggestedScale), before the wearer's fit is applied on top.</summary>
             public Vector3 BaseScale = Vector3.one;
@@ -194,6 +195,18 @@ namespace CustomAvatars.Avatars
                 ResolveOwner(entry, hologram);
                 BuildSecondaryMotion(entry, manifest);
 
+                // The equipment room shows your rings on the mannequin too (Hologram_Holster).
+                var ringRoot = hologram.transform;
+                var ringSource = source;
+                entry.Rings = new RingFollower($"the {avatarName} mannequin", entry.Model, manifest, () =>
+                {
+                    var sites = new List<RingFollower.Site>();
+                    SkinnedMeshRenderer skin = null;
+                    try { skin = hologram.avatarMesh; } catch { }
+                    RingFollower.AddHolsterSites(sites, ringRoot, ringSource, skin, "mannequin");
+                    return sites;
+                });
+
                 entry.VanillaMesh = hologram.avatarMesh;
                 if (Interop.Alive(entry.VanillaMesh))
                 {
@@ -295,6 +308,7 @@ namespace CustomAvatars.Avatars
             // Same order as the in-world avatar: body, then fingers, then face, then the
             // chains that hang off all of it.
             ApplyHands(entry, deltaTime);
+            entry.Rings?.Apply();
             ApplyFace(entry, deltaTime);
             ApplySprings(entry, deltaTime);
 
@@ -449,6 +463,7 @@ namespace CustomAvatars.Avatars
             if (!_entries.TryGetValue(id, out var entry)) return;
             _entries.Remove(id);
 
+            entry.Rings?.Release(why);
             if (Interop.Alive(entry.VanillaMesh))
             {
                 try { entry.VanillaMesh.enabled = entry.VanillaMeshWasEnabled; } catch { }

@@ -1,4 +1,4 @@
-# CustomAvatars 0.42.8
+# CustomAvatars 0.42.10
 
 Wear a VRChat-style avatar in Dungeons of Eternity, in a private lobby with friends who run the
 same build. Face and eye tracking come from VRCFaceTracking over OSC, full-body tracking from
@@ -19,9 +19,15 @@ The design notes are in [docs/PLAN.md](../../docs/PLAN.md) and
 - **Full-body tracking** from SteamVR pucks, with a T-pose calibration, and synced to peers.
 - **Hand poses** from trigger and grip, and **spring bones** for secondary motion, rebuilt from the
   captured PhysBone setup.
+- **Rings** you wear sit on your avatar's own finger, for you and for everyone who can see you,
+  sized to that finger. An avatar with no bone for that finger has the ring hidden while it is on.
 - **Player sizing** — your avatar's real height, applied after spawn. The game's own height
   calibration, which runs at every scene load, is held at vanilla scale for its one call so a
-  sized player is not sunk into the floor by it.
+  sized player is not sunk into the floor by it. When you are bigger than normal, the game's
+  ground probe starts at your scaled body capsule's bottom, as it does at normal size, so a hard
+  landing cannot leave you resting on the capsule, sunk into the floor and caught by stair lips
+  (`SizeGroundCastFollowsCapsule`). `Floor:` lines in the log say where the capsule is against
+  the ground at spawn, scene load, size change and the Numpad 5 key, and whenever you sink or stall.
 
 ## The gate
 
@@ -50,7 +56,8 @@ in a solo room there is nobody to affect.
 ## Keys
 
 The desktop panel in the top left lists these, and it is the thing to trust if this page and the
-build ever disagree. Keys need the game window focused, which in VR means clicking it once.
+build ever disagree. Keys need the game window focused, which in VR means clicking it once. They
+are read through Unity's Input System, which the game switched to in its 2026-09-27 update.
 
 | Key | | Key | |
 |---|---|---|---|
@@ -60,7 +67,7 @@ build ever disagree. Keys need the game window focused, which in VR means clicki
 | F7 | dump environment and face params | F8 | dump avatars |
 | F9 | dump room and Photon events | F10 | full-body tracking on/off |
 | F11 | calibrate full-body (T-pose) | PgUp / PgDn | bigger / smaller |
-| Home | normal size | | |
+| Home | normal size | Numpad 5 | log where your movement capsule is against the floor |
 
 ## Settings
 
@@ -81,6 +88,7 @@ defaults before suspecting the rig.
 ```
 src/CustomAvatars/
 ├── Core.cs        MelonMod entry, keys, wiring
+├── Hotkeys.cs     keyboard reads through the Input System
 ├── Overlay.cs     the desktop status panel
 ├── ModConfig.cs   MelonPreferences
 ├── Gate/          who is in the room, and whether anything is allowed to happen

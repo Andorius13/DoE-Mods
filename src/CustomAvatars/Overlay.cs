@@ -112,7 +112,7 @@ namespace CustomAvatars
                 "F8  dump avatars",
                 "F9  dump room + events",
                 "F10 full-body tracking on/off    F11 calibrate",
-                "PgUp/PgDn bigger/smaller   Home normal size",
+                "PgUp/PgDn bigger/smaller   Home normal size   Num5 log floor",
                 "",
                 "Settings: UserData/MelonPreferences.cfg",
                 "then press F3. Window must be focused for keys.",

@@ -395,30 +395,45 @@ namespace CustomAvatars.Avatars
         /// </summary>
         public static void InstallHeightCalibrationHook(HarmonyLib.Harmony harmony)
         {
+            // The 2026-09-27 update added SteamFrameRig beside OpenVRRig, with the calibration
+            // "ported from OpenVRRig" (its own tooltip). Whichever rig this machine runs gets
+            // the same bracket; each has its own method body, so neither patch lands on the
+            // other or on a shared stub.
+            var hooked = 0;
+            hooked += HookCalibration(harmony, typeof(OpenVRRig), required: true);
+            hooked += HookCalibration(harmony, typeof(SteamFrameRig), required: false);
+            if (hooked == 0)
+                Core.Log.Warning("Size: no CalibrateHeight hooked — the game will measure your height at whatever " +
+                                 "size you are, and sink you by 15 % of it per scene load.");
+        }
+
+        private static int HookCalibration(HarmonyLib.Harmony harmony, Type rig, bool required)
+        {
             try
             {
-                var target = HarmonyLib.AccessTools.Method(typeof(OpenVRRig), "CalibrateHeight");
+                var target = HarmonyLib.AccessTools.Method(rig, "CalibrateHeight");
                 if (target == null)
                 {
-                    Core.Log.Warning("Size: OpenVRRig.CalibrateHeight not found — the game will measure your " +
-                                     "height at whatever size you are, and sink you by 15 % of it per scene load.");
-                    return;
+                    if (required) Core.Log.Warning($"Size: {rig.Name}.CalibrateHeight not found.");
+                    return 0;
                 }
                 harmony.Patch(target,
                     prefix: new HarmonyLib.HarmonyMethod(HarmonyLib.AccessTools.Method(typeof(PlayerSize), nameof(CalibrateHeight_Prefix))),
                     postfix: new HarmonyLib.HarmonyMethod(HarmonyLib.AccessTools.Method(typeof(PlayerSize), nameof(CalibrateHeight_Postfix))));
-                Core.Log.Msg("Size: OpenVRRig.CalibrateHeight bracketed — the game measures your height at vanilla scale.");
+                Core.Log.Msg($"Size: {rig.Name}.CalibrateHeight bracketed — the game measures your height at vanilla scale.");
+                return 1;
             }
             catch (Exception e)
             {
-                Core.Log.Warning($"Size: could not hook OpenVRRig.CalibrateHeight ({e.GetType().Name}: {e.Message}).");
+                Core.Log.Warning($"Size: could not hook {rig.Name}.CalibrateHeight ({e.GetType().Name}: {e.Message}).");
+                return 0;
             }
         }
 
         private static bool _calibrationUnscaled;
         private static float _calibrationOffsetBefore = float.NaN;
 
-        private static void CalibrateHeight_Prefix(OpenVRRig __instance)
+        private static void CalibrateHeight_Prefix(XRRig __instance)
         {
             // Never throw out of here: it runs inside the rig's Awake.
             _calibrationUnscaled = false;
@@ -435,7 +450,7 @@ namespace CustomAvatars.Avatars
             catch { }
         }
 
-        private static void CalibrateHeight_Postfix(OpenVRRig __instance)
+        private static void CalibrateHeight_Postfix(XRRig __instance)
         {
             try
             {
@@ -452,6 +467,7 @@ namespace CustomAvatars.Avatars
                 Core.Log.Msg($"Size: the game re-measured your height" +
                              (_calibrationUnscaled ? $" — rig held at x1.00 for the call, back to x{applied:0.00}" : " at x1.00") +
                              $"; camera rig offset {_calibrationOffsetBefore:0.000} → {after:0.000} m.");
+                FloorProbe.Request("after the height calibration", 1f);
             }
             catch { }
             finally { _calibrationUnscaled = false; }

@@ -35,6 +35,7 @@ namespace CustomAvatars.Avatars
         private VRIK _vrik;
         private SpringBones _springs;
         private HandPoser _hands;
+        private RingFollower _rings;
         private PoseRetargeter _retarget;
         private ArmIK _armIk;
         private LegIK _legIk;
@@ -48,6 +49,7 @@ namespace CustomAvatars.Avatars
             UnityEngine.Rendering.ShadowCastingMode.On;
         private readonly List<(Renderer renderer, bool wasEnabled)> _fpsArmRenderers =
             new List<(Renderer, bool)>();
+        private float _nextFpsArmRescanAt;
 
         public bool IsActive => Interop.Alive(_model);
 
@@ -68,6 +70,12 @@ namespace CustomAvatars.Avatars
         private bool _retargetNeedsRecapture;
         private float _retargetSettleUntil;
         private bool _vanillaMeshWasUpdateOffscreen;
+        private string _vanillaMeshMode;          // what ApplyVanillaMeshVisibility last applied; null = nothing yet
+        private bool _avatarHiddenWithBody;       // the game has hidden the vanilla body, so we hid the avatar
+        private bool _vanillaMeshBoundsOurs;      // we widened the bounds and have to hand them back
+        private int _vanillaMeshRehides;
+        private string _vanillaMeshRehideWhat;
+        private float _vanillaMeshRehideLogAt;
         private Bounds _vanillaMeshWasLocalBounds;
         private int _leashTrips;
         private bool _wasAlive = true;
@@ -430,6 +438,10 @@ namespace CustomAvatars.Avatars
                 var handResult = _hands.Build(_model, manifest);
                 Core.Log.Msg($"    hand poses: {handResult}{(isSelf ? "" : " (driven by that peer)")}");
                 if (isSelf) HandPoser.LogInputBackend();
+
+                // Worn rings sit on the vanilla finger (the first-person arms' for you, the
+                // body's for everyone else); this puts them on ours.
+                _rings = new RingFollower(SafeName(player), _model, manifest, RingSites);
 
                 Core.Log.Msg($"*** Avatar swapped: {manifest.name} on {SafeName(player)} " +
                              $"(scale x{manifest.rig.suggestedScale:0.###})");
@@ -887,8 +899,13 @@ namespace CustomAvatars.Avatars
         /// Only the arm meshes are hidden. The weapon-stat and kill-counter panels are parented
         /// into this same rig's forearm bones, so a blanket hide would remove real UI.
         /// </summary>
-        private void CacheFpsArms(AvatarPlayer player)
+        private void CacheFpsArms(AvatarPlayer player, string why = null)
         {
+            // A re-scan keeps what each renderer was before we first touched it: by now the
+            // survivors are off because we turned them off.
+            var wasBefore = new Dictionary<IntPtr, bool>();
+            foreach (var (r, wasOn) in _fpsArmRenderers)
+                if (Interop.Alive(r)) wasBefore[r.Pointer] = wasOn;
             _fpsArmRenderers.Clear();
             try
             {
@@ -922,10 +939,14 @@ namespace CustomAvatars.Avatars
                         if (token.Length == 0) continue;
                         if (path.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0) { kept = true; break; }
                     }
-                    if (!kept) _fpsArmRenderers.Add((r, r.enabled));
+                    // A worn ring is parented into this rig's ring finger (EquippableHolster's
+                    // attach point). It is not part of the arms: RingFollower moves it onto the
+                    // avatar's finger, and hiding it here would lose it altogether.
+                    if (!kept && IsEquippable(r)) kept = true;
+                    if (!kept) _fpsArmRenderers.Add((r, wasBefore.TryGetValue(r.Pointer, out var was) ? was : r.enabled));
                 }
 
-                Core.Log.Msg($"    FPS arms: hiding {_fpsArmRenderers.Count} of {renderers.Length} renderer(s) " +
+                Core.Log.Msg($"    FPS arms{(why == null ? "" : $" ({why})")}: hiding {_fpsArmRenderers.Count} of {renderers.Length} renderer(s) " +
                              $"under `{Interop.ScenePath(armsModel)}`, keeping paths matching " +
                              $"`{ModConfig.SwapFpsArmKeepPrefixes.Value}` — SwapHideFpsArms = {ModConfig.SwapHideFpsArms.Value}");
                 foreach (var (r, wasOn) in _fpsArmRenderers)
@@ -934,19 +955,61 @@ namespace CustomAvatars.Avatars
             catch (Exception e) { Core.Log.Warning($"    FPS arms lookup failed: {e.GetType().Name}: {e.Message}"); }
         }
 
+        /// <summary>
+        /// Where rings can be on this player: the ring holsters on the game's body, and for
+        /// yourself the first-person arms' attach points as well — your own ring is never sent
+        /// to your own body (`Remote_Holster` goes to the others only).
+        /// </summary>
+        private List<RingFollower.Site> RingSites()
+        {
+            var sites = new List<RingFollower.Site>();
+            if (!Interop.Alive(_fullBody)) return sites;
+            Animator animator = null;
+            SkinnedMeshRenderer skin = null;
+            try { animator = _fullBody.GetComponent<Animator>(); } catch { }
+            try { skin = _fullBody.characterMesh; } catch { }
+            RingFollower.AddHolsterSites(sites, _fullBody.transform, animator, skin, "body");
+            if (IsSelf && Interop.Alive(_player))
+            {
+                Transform vrRoot = null;
+                try { vrRoot = RootOf(_player.Head); } catch { }
+                RingFollower.AddFirstPersonSites(sites, vrRoot, _fullBody.transform, animator, skin);
+            }
+            return sites;
+        }
+
+        private static bool IsEquippable(Renderer r)
+        {
+            try { return Interop.Alive(r.GetComponentInParent<Equippable>(true)); }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Keep the first-person arms hidden. Since the 2026-09-27 update the game can rebuild
+        /// them (`CharacterPrefab.RegenerateFPSArms`, when your cosmetics change), and a rebuilt
+        /// arm mesh is a renderer we never saw; a dead one in our list is the tell, and the rig
+        /// is scanned again, at most every two seconds.
+        /// </summary>
         private void ApplyFpsArmVisibility()
         {
             if (_fpsArmRenderers.Count == 0) return;
             try
             {
                 var hide = ModConfig.SwapHideFpsArms.Value;
+                var dead = false;
                 foreach (var (r, wasEnabled) in _fpsArmRenderers)
                 {
-                    if (!Interop.Alive(r)) continue;
+                    if (!Interop.Alive(r)) { dead = true; continue; }
                     // Restoring to `wasEnabled` rather than to true matters: several of these
                     // are off already because they belong to cosmetics you don't have equipped.
                     var target = hide ? false : wasEnabled;
                     if (r.enabled != target) r.enabled = target;
+                }
+                if (dead && Time.unscaledTime >= _nextFpsArmRescanAt && Interop.Alive(_player))
+                {
+                    _nextFpsArmRescanAt = Time.unscaledTime + 2f;
+                    CacheFpsArms(_player, "the game rebuilt them");
+                    ApplyFpsArmVisibility();
                 }
             }
             catch { }
@@ -1003,30 +1066,81 @@ namespace CustomAvatars.Avatars
         /// Re-applied every frame rather than set once at swap time. Two reasons: toggling
         /// SwapHideVanillaMesh and pressing F3 mid-swap now actually does something, and if the
         /// game's own visibility handling ever draws the renderer again, this quietly wins.
+        ///
+        /// Only the one property the chosen mode hides with is ours. Until 0.42.9 all three were
+        /// forced back to what they were at swap time every frame, so whenever the game itself
+        /// hid the body we undid it and the two of us took turns, one log line per frame: 41,000
+        /// "vanilla mesh hidden" lines in the first session after the 2026-09-27 update, in
+        /// bursts that often start at a death, against a few dozen per session before it. The
+        /// update gave the game more ways to hide a body itself — `DissolveHandler` now switches
+        /// renderers with `forceRenderingOff` (`EnableRenderers`, at the end of a dissolve and
+        /// when materials reset), beside `CharacterPrefab.HideModels` — and the old code turned
+        /// each of them straight back on. The other two properties are now the game's to set.
+        /// Whatever it sets our own property to while we hold it is remembered as the value to
+        /// hand back on revert, since that is the game's current wish rather than its swap-time
+        /// one; and the log now names the property, so if the game turns out to be resetting
+        /// that one every frame the next session says so.
+        ///
+        /// The game can also rebuild the character mesh (`RegenerateAvatarMeshFromModules`,
+        /// on a cosmetics change); if `characterMesh` stops being the renderer we hid, the new
+        /// one is taken on.
+        ///
+        /// Logged on change only: once when the mode changes, once when the game first puts the
+        /// body back, and then at most every 30 s with a count while it keeps doing so.
         /// </summary>
         private void ApplyVanillaMeshVisibility()
         {
+            TrackVanillaMeshReplacement();
             if (!Interop.Alive(_hiddenVanillaMesh)) return;
             try
             {
                 var hide = ModConfig.SwapHideVanillaMesh.Value;
-                var mode = (ModConfig.SwapHideVanillaMeshMode.Value ?? "ShadowsOnly").Trim();
+                var mode = NormaliseHideMode(ModConfig.SwapHideVanillaMeshMode.Value);
+                var want = hide ? mode : "Shown";
 
-                var wantEnabled = _vanillaMeshWasEnabled;
-                var wantForcedOff = _vanillaMeshWasForcedOff;
-                var wantCasting = _vanillaMeshWasCasting;
-
-                if (hide)
+                // The frame a mode is taken is our own doing, not the game putting anything back.
+                var taking = want != _vanillaMeshMode;
+                if (taking)
                 {
-                    if (string.Equals(mode, "Disable", StringComparison.OrdinalIgnoreCase)) wantEnabled = false;
-                    else if (string.Equals(mode, "ForceOff", StringComparison.OrdinalIgnoreCase)) wantForcedOff = true;
-                    else wantCasting = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+                    // Hand back what the previous mode held before taking the new one.
+                    RestoreVanillaMeshProperty(_vanillaMeshMode);
+                    _vanillaMeshMode = want;
+                    _vanillaMeshRehides = 0;
+                    _vanillaMeshRehideWhat = null;
+                    Core.Log.Msg($"    vanilla mesh {(hide ? $"hidden ({mode})" : "shown")}.");
+                }
+                if (!hide) { FollowGameHide(false); return; }
+
+                string what = null;
+                switch (mode)
+                {
+                    case "Disable":
+                        if (_hiddenVanillaMesh.enabled)
+                        {
+                            what = "enabled";
+                            _vanillaMeshWasEnabled = true;
+                            _hiddenVanillaMesh.enabled = false;
+                        }
+                        break;
+                    case "ForceOff":
+                        if (!_hiddenVanillaMesh.forceRenderingOff)
+                        {
+                            what = "forceRenderingOff = false";
+                            _vanillaMeshWasForcedOff = false;
+                            _hiddenVanillaMesh.forceRenderingOff = true;
+                        }
+                        break;
+                    default:
+                        var casting = _hiddenVanillaMesh.shadowCastingMode;
+                        if (casting != UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly)
+                        {
+                            what = $"shadowCastingMode = {casting}";
+                            _vanillaMeshWasCasting = casting;
+                            _hiddenVanillaMesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+                        }
+                        break;
                 }
 
-                var changed = false;
-                if (_hiddenVanillaMesh.enabled != wantEnabled) { _hiddenVanillaMesh.enabled = wantEnabled; changed = true; }
-                if (_hiddenVanillaMesh.forceRenderingOff != wantForcedOff) { _hiddenVanillaMesh.forceRenderingOff = wantForcedOff; changed = true; }
-                if (_hiddenVanillaMesh.shadowCastingMode != wantCasting) { _hiddenVanillaMesh.shadowCastingMode = wantCasting; changed = true; }
                 // Shadows-only got the game solving peers again, but only while their body was
                 // on screen — the moment it left the frustum the solve stopped and the avatar
                 // froze mid-stride, which reads as "sometimes it animates and sometimes it
@@ -1035,19 +1149,131 @@ namespace CustomAvatars.Avatars
                 // no longer a useful answer to "can anyone see this player". Bounds big enough
                 // to survive any frustum keep it solving for as long as the player exists; the
                 // cost is one skinned shadow per peer.
-                if (hide && ModConfig.SwapKeepVanillaMeshInView.Value)
+                if (ModConfig.SwapKeepVanillaMeshInView.Value)
                 {
-                    if (_hiddenVanillaMesh.updateWhenOffscreen) { _hiddenVanillaMesh.updateWhenOffscreen = false; changed = true; }
+                    if (_hiddenVanillaMesh.updateWhenOffscreen)
+                    {
+                        _hiddenVanillaMesh.updateWhenOffscreen = false;
+                        _vanillaMeshBoundsOurs = true;
+                        what = what == null ? "updateWhenOffscreen = true" : what + ", updateWhenOffscreen = true";
+                    }
                     if (_hiddenVanillaMesh.localBounds.size.x < 100f)
                     {
+                        if (_vanillaMeshBoundsOurs) what = what == null ? "bounds" : what + ", bounds";
                         _hiddenVanillaMesh.localBounds = new Bounds(Vector3.zero, Vector3.one * 1000f);
-                        changed = true;
+                        _vanillaMeshBoundsOurs = true;
                     }
                 }
 
-                if (changed) Core.Log.Msg($"    vanilla mesh {(hide ? $"hidden ({mode})" : "shown")}.");
+                if (!taking) NoteVanillaMeshRehide(what);
+
+                // The properties we don't own say whether the game itself wants a peer's body
+                // unseen — dissolved away after a death, say. Their avatar is that body as far
+                // as you are concerned, so it goes with it. Never your own: the game may well
+                // hide your body from you in first person, and your avatar is how you see your
+                // own hands.
+                if (!IsSelf)
+                {
+                    var gameHides = (mode != "Disable" && !_hiddenVanillaMesh.enabled) ||
+                                    (mode != "ForceOff" && _hiddenVanillaMesh.forceRenderingOff);
+                    FollowGameHide(gameHides);
+                }
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Hide the avatar while the game hides the body it stands in for, and show it again
+        /// when the game does. Through `forceRenderingOff`, so each renderer's own `enabled` —
+        /// a clothing toggle the avatar shipped with — is left as it was.
+        /// </summary>
+        private void FollowGameHide(bool hide)
+        {
+            if (hide == _avatarHiddenWithBody || !Interop.Alive(_model)) return;
+            _avatarHiddenWithBody = hide;
+            try
+            {
+                foreach (var r in _model.GetComponentsInChildren<Renderer>(true))
+                    if (Interop.Alive(r)) r.forceRenderingOff = hide;
+            }
+            catch { }
+            Core.Log.Msg(hide
+                ? $"    vanilla mesh: the game hid {SafeName(_player)}'s body (enabled={_hiddenVanillaMesh.enabled}, " +
+                  $"forceRenderingOff={_hiddenVanillaMesh.forceRenderingOff}) — the avatar is hidden with it."
+                : $"    vanilla mesh: the game shows {SafeName(_player)}'s body again — so is the avatar.");
+        }
+
+        private static string NormaliseHideMode(string mode)
+        {
+            mode = (mode ?? "").Trim();
+            if (string.Equals(mode, "Disable", StringComparison.OrdinalIgnoreCase)) return "Disable";
+            if (string.Equals(mode, "ForceOff", StringComparison.OrdinalIgnoreCase)) return "ForceOff";
+            return "ShadowsOnly";
+        }
+
+        /// <summary>Put back the one property <paramref name="mode"/> hides with.</summary>
+        private void RestoreVanillaMeshProperty(string mode)
+        {
+            if (!Interop.Alive(_hiddenVanillaMesh) || mode == null) return;
+            try
+            {
+                switch (mode)
+                {
+                    case "Disable": _hiddenVanillaMesh.enabled = _vanillaMeshWasEnabled; break;
+                    case "ForceOff": _hiddenVanillaMesh.forceRenderingOff = _vanillaMeshWasForcedOff; break;
+                    case "ShadowsOnly": _hiddenVanillaMesh.shadowCastingMode = _vanillaMeshWasCasting; break;
+                }
+                if (mode != "Shown" && _vanillaMeshBoundsOurs)
+                {
+                    _hiddenVanillaMesh.localBounds = _vanillaMeshWasLocalBounds;
+                    _hiddenVanillaMesh.updateWhenOffscreen = _vanillaMeshWasUpdateOffscreen;
+                    _vanillaMeshBoundsOurs = false;
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Count the frames on which something other than us had put the body back, and say
+        /// so on change: once when it starts, then a count every 30 s while it goes on.
+        /// </summary>
+        private void NoteVanillaMeshRehide(string what)
+        {
+            var now = Time.unscaledTime;
+            if (what != null)
+            {
+                _vanillaMeshRehides++;
+                if (_vanillaMeshRehideWhat != what)
+                {
+                    _vanillaMeshRehideWhat = what;
+                    _vanillaMeshRehides = 0;
+                    _vanillaMeshRehideLogAt = now + 30f;
+                    Core.Log.Msg($"    vanilla mesh: the game set {what}; hidden again ({_vanillaMeshMode}).");
+                }
+            }
+            if (_vanillaMeshRehides > 0 && now >= _vanillaMeshRehideLogAt)
+            {
+                Core.Log.Msg($"    vanilla mesh: re-hidden {_vanillaMeshRehides} more time(s) in the last 30 s " +
+                             $"(last: the game set {_vanillaMeshRehideWhat}).");
+                _vanillaMeshRehides = 0;
+                _vanillaMeshRehideLogAt = now + 30f;
+            }
+        }
+
+        /// <summary>Follow the game onto a rebuilt character mesh.</summary>
+        private void TrackVanillaMeshReplacement()
+        {
+            if (!Interop.Alive(_fullBody)) return;
+            SkinnedMeshRenderer current;
+            try { current = _fullBody.characterMesh; } catch { return; }
+            if (!Interop.Alive(current)) return;
+            if (Interop.Alive(_hiddenVanillaMesh) && current.Pointer == _hiddenVanillaMesh.Pointer) return;
+
+            var hadOne = _hiddenVanillaMesh != null;
+            RestoreVanillaMeshProperty(_vanillaMeshMode);
+            _vanillaMeshMode = null;
+            CacheVanillaMesh(_fullBody);
+            if (hadOne) Core.Log.Msg("    vanilla mesh: the game rebuilt the character mesh — hiding the new one.");
         }
 
         public void LateUpdate(float deltaTime)
@@ -1173,6 +1399,9 @@ namespace CustomAvatars.Avatars
                 try { _hands.Update(deltaTime); }
                 catch (Exception e) { Core.Log.Warning($"Hand poser failed, disabling: {e.Message}"); _hands = null; }
             }
+
+            // Rings after the fingers: they go where the avatar's finger now is.
+            _rings?.Apply();
 
             // Face after the body and hands: nothing above it touches blendshapes or eye
             // bones, but a fixed order means a future pose source can't start fighting it.
@@ -2219,16 +2448,14 @@ namespace CustomAvatars.Avatars
         public void Revert(string why)
         {
             // Un-hide first: if anything below throws, the player still has a body.
+            _rings?.Release(why);
+            _rings = null;
             try
             {
-                if (Interop.Alive(_hiddenVanillaMesh))
-                {
-                    _hiddenVanillaMesh.enabled = _vanillaMeshWasEnabled;
-                    _hiddenVanillaMesh.forceRenderingOff = _vanillaMeshWasForcedOff;
-                    _hiddenVanillaMesh.shadowCastingMode = _vanillaMeshWasCasting;
-                    _hiddenVanillaMesh.localBounds = _vanillaMeshWasLocalBounds;
-                    _hiddenVanillaMesh.updateWhenOffscreen = _vanillaMeshWasUpdateOffscreen;
-                }
+                // Only what we hid with. The other two are the game's, and forcing them back to
+                // their swap-time values here would show a body the game is dissolving away.
+                if (Interop.Alive(_hiddenVanillaMesh)) RestoreVanillaMeshProperty(_vanillaMeshMode);
+                _vanillaMeshMode = null;
             }
             catch (Exception e) { Core.Log.Warning($"Could not restore the vanilla mesh: {e.Message}"); }
             if (_forcedVanillaIk && Interop.Alive(_fullBody))
