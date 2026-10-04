@@ -1,12 +1,13 @@
 using System;
 using MelonLoader;
+using UnityEngine.InputSystem;
 using LootOverhaul;
 using LootOverhaul.Gate;
 using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.18", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.20", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +25,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.9.18";
+        public const string Version = "0.9.20";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -92,6 +93,7 @@ namespace LootOverhaul
             BagGesture.Tick();
             BagPanel.Tick();
             Buffs.Tick();
+            LightPotion.Tick();
             Loadout.Tick();
             SceneExit.Tick();
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
@@ -104,16 +106,16 @@ namespace LootOverhaul
             if (!ModConfig.HotkeysEnabled.Value) return;
             try
             {
-                if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.LeftBracket)) BagPanel.Toggle();
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.RightBracket)) BagManager.DropLast();
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Equals)) Booth.PlaceHere();
-                else if (ModConfig.ReconEnabled.Value && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Minus)) GeneratorProbe.JunkProbe();
-                else if (ModConfig.ReconEnabled.Value && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Semicolon)) GeneratorProbe.ResourceCensus();
+                if (Hotkeys.Pressed(Key.LeftBracket)) BagPanel.Toggle();
+                else if (Hotkeys.Pressed(Key.RightBracket)) BagManager.DropLast();
+                else if (Hotkeys.Pressed(Key.Equals)) Booth.PlaceHere();
+                else if (ModConfig.ReconEnabled.Value && Hotkeys.Pressed(Key.Minus)) GeneratorProbe.JunkProbe();
+                else if (ModConfig.ReconEnabled.Value && Hotkeys.Pressed(Key.Semicolon)) GeneratorProbe.ResourceCensus();
                 if (!ModConfig.ReconEnabled.Value) return;
-                if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Insert)) GeneratorProbe.Survey();
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Delete)) GeneratorProbe.SpawnTest();
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Backslash)) LobbyProbe.Survey();
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.ScrollLock)) LobbyProbe.ButtonTest();
+                if (Hotkeys.Pressed(Key.Insert)) GeneratorProbe.Survey();
+                else if (Hotkeys.Pressed(Key.Delete)) GeneratorProbe.SpawnTest();
+                else if (Hotkeys.Pressed(Key.Backslash)) LobbyProbe.Survey();
+                else if (Hotkeys.Pressed(Key.ScrollLock)) LobbyProbe.ButtonTest();
             }
             catch (Exception e) { LoggerInstance.Warning($"Hotkey probe threw: {e.GetType().Name}: {e.Message}"); }
         }
@@ -125,7 +127,7 @@ namespace LootOverhaul
             LootRegistry.Clear($"scene changed to {sceneName}", destroyOwned: true);
             BagManager.DroppedByMe.Clear();
             Unlocks.Invalidate();
-            if (sceneName == Il2Cpp.GameManager.LOBBY_SCENE || sceneName == Il2Cpp.GameManager.MAINMENU_SCENE) Buffs.ClearAll($"entered {sceneName}");
+            if (sceneName == Il2Cpp.GameManager.LOBBY_SCENE || sceneName == Il2Cpp.GameManager.MAINMENU_SCENE) { Buffs.ClearAll($"entered {sceneName}"); LightPotion.Clear($"entered {sceneName}"); }
             BagPanel.Hide();
             Booth.Hide();
             _templateCaptureAt = sceneName == Il2Cpp.GameManager.LOBBY_SCENE ? UnityEngine.Time.unscaledTime + 3f : -1f;
@@ -168,10 +170,9 @@ namespace LootOverhaul
             else
             {
                 if (Il2Cpp.GameManager.IsLobbyScene) _templateCaptureAt = UnityEngine.Time.unscaledTime + 1f;
-                // The bag is loaded here at the latest, so the worn armor goes onto the exosuit
-                // a moment later even when the avatar spawned first; loot weapons the holster
-                // missed while the gate was shut are re-applied by Loadout.
-                try { Buffs.RebuildWorn(); Buffs.RequestReapply(1.0f); } catch (Exception e) { LoggerInstance.Warning($"Worn rebuild on gate open threw: {e.GetType().Name}"); }
+                // The bag is loaded here at the latest, so the worn armor table is rebuilt; loot
+                // weapons the holster missed while the gate was shut are re-applied by Loadout.
+                try { Buffs.RebuildWorn(); } catch (Exception e) { LoggerInstance.Warning($"Worn rebuild on gate open threw: {e.GetType().Name}"); }
             }
             try { Loadout.OnGateChanged(active); } catch (Exception e) { LoggerInstance.Warning($"Loadout gate handler threw: {e.GetType().Name}"); }
             try { FabricatorBridge.OnGateChanged(active); } catch (Exception e) { LoggerInstance.Warning($"Armory gate handler threw: {e.GetType().Name}"); }

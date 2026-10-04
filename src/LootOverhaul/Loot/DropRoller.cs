@@ -271,7 +271,9 @@ namespace LootOverhaul.Loot
             var gentle = Vector3.up * 1.2f + new Vector3((float)(Rng.NextDouble() - 0.5), 0f, (float)(Rng.NextDouble() - 0.5)) * 0.6f;
             for (var attempt = 0; attempt < 3; attempt++)
             {
-                var item = MakeJunk(killerActor);
+                // The crypt is black by shader; some of its trinkets are light potions instead.
+                var item = DarkRoomManager.Instance != null && Rng.NextDouble() < LightPotion.CryptDropShare
+                    ? LightPotion.Dropped(killerActor) : MakeJunk(killerActor);
                 if (item == null) return;
                 var tag = SpawnLoot(item, pos, gentle);
                 if (tag == null) continue;

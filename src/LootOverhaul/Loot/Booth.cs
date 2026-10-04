@@ -303,7 +303,7 @@ namespace LootOverhaul.Loot
                 var row = new GameObject($"TonicRow_{i}"); row.transform.SetParent(_buy, false);
                 row.transform.localPosition = new Vector3(0f, y0 - i * 0.14f, 0f);
                 UiKit.Text(row.transform, new Vector3(left, 0.03f, 0f), textW, 0.05f, 0.38f, $"<color=#7FD8FF>{def.Name}</color>", fit: true);
-                UiKit.Text(row.transform, new Vector3(left, -0.03f, 0f), textW, 0.045f, 0.3f, $"<color=#9A9A9A>{def.Flavor} · ×{def.Mults[0]:0.00} / ×{def.Mults[1]:0.00} / ×{def.Mults[2]:0.00}</color>", fit: true);
+                UiKit.Text(row.transform, new Vector3(left, -0.03f, 0f), textW, 0.045f, 0.3f, $"<color=#9A9A9A>{def.Flavor} · {Buffs.Tiers(def)}</color>", fit: true);
                 var captured = def;
                 var x = rightX;
                 for (var t = 2; t >= 0; t--)

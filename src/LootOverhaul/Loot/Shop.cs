@@ -130,7 +130,7 @@ namespace LootOverhaul.Loot
         public static bool BuyTonic(Buffs.Def def, int tier)
         {
             var inv = BagManager.Inventory;
-            if (!Unlocks.PerkUnlocked(def.Stat)) { BagManager.Toast("You haven't unlocked that perk yet."); return false; }
+            if (def.Stat != LightPotion.Stat && !Unlocks.PerkUnlocked(def.Stat)) { BagManager.Toast("You haven't unlocked that perk yet."); return false; }
             var item = Buffs.MakeItem(def, tier);
             var price = (int)Math.Round(item.Value * ModConfig.ShopPriceMultiplier.Value);
             if (inv.Gold < price) { BagManager.Toast($"Not enough tokens: {price} needed, you have {inv.Gold}."); return false; }

@@ -372,7 +372,9 @@ by `Update(ExosuitModule)` / `ResetAll`. A run buff is a temporary bump to one o
 floats, re-applied after the game's own recompute (postfix on `ResetAll`/`Update`), cleared
 on lobby return. Nothing persists, nothing is written. "Potion of Iron Skin" = Chest_Armor
 × 1.5 for the run; "Elixir of Haste" = Legs_Haste. **Cheapest real feature on this list.**
-Whether each multiplier is applied locally or on the master needs one recon run per stat.
+Whether each multiplier is applied locally or on the master needs one recon run per stat. **Since the
+2026-09-27 update the stats are getter-only (a four-slot perk table behind
+`GetExosuitStat`); see 0.9.19 under Implementation state.**
 
 **Armor — no stat, but the exosuit *is* the armor system.** `Chest_Armor`,
 `Chest_Resilience`, `Chest_Vitality`, `Legs_Absorb` are the game's damage-side stats, and
@@ -601,6 +603,98 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   (`AvatarCustomizer`) builds `availableMeleeWeapons` etc. only in `InitWeaponModules`, called
   from `OnPlayerProfileLoaded` — hence sold loot lingering as vanilla; the mod now calls it on
   hidden customizers after every bag weapon change and keeps `RetiredGuids`.
+
+- **0.9.19 (2026-09-28): the 2026-09-27 game update.** Dumped again (`dump-0928/`; RVA − file
+  offset is now 0x1400 in the `il2cpp` section and 0xC00 in `.text` below RVA 0x426000, not
+  0xE00; `tools/disasm.py` / `xref.py` still carry the old constants and the old dump path).
+  The shared empty-method stub moved to RVA 0x42A210 (3,588 methods); `WeaponFactory.Init` is
+  still one of them, so the patch guard works unchanged.
+  - **The exosuit is a four-slot table, not a float per perk.** `AvatarPlayer.Exosuit` now holds
+    `ExosuitPerkSlot arms, chest, legs, mind` (`perkType`, `stat`, `probability`), two ring
+    slots (`EquippablePerkSlot leftRing/rightRing`, the new `AttackRing` … `LuckyRing` module
+    types) and aura timers. Every stat (`Legs_Haste`, `Chest_Armor`, …) is a **getter-only
+    property**: a four-instruction thunk `movss xmm2, default; mov edx, PerkType; jmp
+    GetExosuitStat`. `GetExosuitStat(type, default)` returns the slot's `stat` if one of the
+    four slots holds that perk type, else `default` (1.0; 0 for Vitality, Stillness, Gemini,
+    Unburdened, Grounded), then widens it by the local player's `Ring_AuraNaniteSurge`.
+    `Update(module)` is `SetSlot(moduleType, {perk, GetMultiplier(), GetProbability()})`;
+    `ResetAll` zeroes the slots. **Root cause of "armor does nothing":** the mod wrote the stats
+    with `PropertyInfo.SetValue`, which now throws `ArgumentException` (no setter) — every
+    `buffs applied` line of the first post-update session reads
+    `Arms_Power: ArgumentException, Legs_Haste: ArgumentException, …`. Nothing was ever applied.
+  - **The fix:** one Harmony postfix on `Exosuit.GetExosuitStat` (RVA 0x5262C0, not shared).
+    All 39 stat getters tail-jump into it and `Health.UpdateLocal` calls it directly (Vitality
+    925, Stillness 1000), so every reader sees it. The postfix multiplies (or divides, for the
+    "less is better" stats) the game's result for the local player's exosuit only (pointer
+    compared against `AvatarPlayer.LocalExoSuit`; every avatar has its own `exoSuit`). The mod
+    no longer stores anything in the game's objects, so the 0.9.14 base-value bookkeeping and
+    the `ResetAll`/`Update` hooks are gone.
+  - **Run speed:** `VRControllerInput.Update`: speed = base × `Settings`[0xD0] × max(1, 0.9 ×
+    `Legs_Haste` × `Legs_Juggernaut_Speed` × `GetEquippableMoveSpeedMult()`), all behind
+    `!GameManager.FriendlyFireEnabled` (the jump/leap gate now covers haste too).
+    `GetEquippableMoveSpeedMult` is the ring auras (Combat Rush, Battle Frenzy, …, time-limited).
+    Because of the 0.9, a haste value below 1.11 does nothing — the haste perk's level 1 (1.1) is
+    invisible — and the mod's ×1.15 on the default 1.0 would have been 3.5%. The mod multiplies
+    from at least 1/0.9 (`Buffs.HasteFloor`), so ×1.15 on the label is ×1.15 on the ground.
+    The vanilla tooltips' "by x %" wording is `ExosuitModule.FormatPercentage`, text only.
+  - **Readers (xref, 2026-09-28 build):** Arms_Power/Might/Pierce/Pullback →
+    `DynamicAnchorStab.ApplyDamageMultipliers` (Pullback also `Weapon.GetAttackerDamageMultiplier`,
+    `WeaponStaff.OnImpact`); Critical/Impale (+probabilities) → `Weapon.Perk.ApplyAttackCritical`;
+    Farshot → bow/crossbow/staff shots; Knockback → `Basher.TryBash`, shield collisions;
+    Distance → `Prop.get_ballisticRange`; Chest_Armor/Ricochet/Dispel/Blast → `OnDamaged`
+    (× (1 − conduit stat) now); Antidote → `PlayerState.Update`, `HazardTrigger.LateUpdate`;
+    Resilience/Antifreeze → `PlayerState.GetDuration`; Heal → `HealthPotion.OnDrinkPotion`,
+    `RPC_OnBreak`, `HealthPotionArea`; Vitality → regeneration; **Stillness → regeneration while
+    standing still** (was described as slowed time); Absorb → `FellFromHeight`; Jump →
+    `UpdateJumping`; Leap/Endurance → `GetInputVelocity`; **Mystify → enemy projectile error
+    (`Sauron.AICombatMelee.Net_UpdateRandomProjectileError`)**; **Fortune →
+    `GameManager.GetEarnedLoot` ← `SaveLoot`: the end-of-run coin reward, i.e. PlayFab coins.**
+    The Fortune tonic and armor stat therefore raise real coins; that crosses the PlayFab wall
+    and is the user's call (not changed). Unread: Arms_Stun, Legs_Airtime/Shockwave/Swift,
+    Mind_Crafter/Lucky/Perception/Predator.
+  - **Perk table re-extracted** (`ExosuitModuleContainer` in `data.unity3d`, raw UnityPy parse
+    keyed by the MonoScript's path id; 32 perks; value = multiplier + inc × level):
+    Chest_Armor now has a perk (1.0 − 0.1/level, unlock 20); Mind_SonicVeil is new (1.125 +
+    0.375); Haste 1.0 + 0.1; Vitality 0.05 + 0.05; Stillness 0.15 + 0.05; Antidote/Blast/Absorb
+    0.95 − 0.15; Endurance 0.9 − 0.1; Dispel/Ricochet/Antifreeze 1.0 − 0.1; Heal 1.05 + 0.15;
+    Critical/Impale 1.0 + 0.4 (probability 0.15 + 0.05); Juggernaut 0.95 + 0.05.
+  - **Changed APIs the mod touches** (signature diff of every hooked method and every member
+    name in the source, old dump vs new): `Exosuit` stats fields → getter-only properties
+    (above); `Exosuit.GetExosuitStat` / `GetExosuitProbability` / `ResetExosuit` / `SetSlot` /
+    `GetEquippableMoveSpeedMult` new; `WeaponFactory.GenerateMythicWeaponModuleForLocalPlayer`
+    gained `int randomSeed = -1`, passed straight to `GenerateRandomWeaponModuleForLocalPlayer`'s
+    seed (−1 = random, same as before; the 0.9.18 DLL, built against the old assemblies, threw
+    `MissingMethodException` and the whole enchanting self-test never ran); `Weapon.StopOutline`
+    override removed (the mod calls `Prop.StopOutline`, still virtual). Enums grew without
+    renumbering: `WeaponClass` + Auric 5, Spectral 6; `WeaponPerk` + SpectralAttack 140,
+    UndeadFortune 141; `Prop.Type` + CryptHammer, SkullDagger, GravelightBow, CryptGem,
+    ShieldPotion, RuneKey, TorchStaff, Lute, Compass; `DamageType` + DarkLight 18; `ModuleType`
+    + the ring types, CryptGem, ShieldPotion. All 65 hooks installed on the new build with the
+    same signatures and unshared RVAs.
+  - **Input:** Unity's active input handling is the Input System package; every
+    `UnityEngine.Input` call throws `InvalidOperationException` (386k "Hotkey probe threw" lines).
+    Hotkeys now read `UnityEngine.InputSystem.Keyboard.current[Key.X].wasPressedThisFrame`
+    (namespace unprefixed in the interop assembly). The bag gesture recovered 2.2 s after the
+    first failure that session (`Bag gesture reading SteamVR actions`), but the update added
+    `SteamOpenXRInput` and `SteamFrameInput` backends beside `OpenVRInput`, where the SteamVR
+    actions do not exist; the gesture reads the game's `XRInput` singleton
+    (`rightThumbstick`, `rightHandTrigger`) first.
+  - **Crypt darkness and the light potion.** The new crypt dungeons are dark by shader:
+    `DarkRoomManager` (one per crypt, from `Crypt_Start_01`) switches room materials to
+    ENABLE_DARKNESS and reveals them only inside up to 16 spheres per room
+    (`_DynLightSpheres`) built each frame from `DarkRoomManager.ActiveLights`
+    (`IActiveLight`: `Torch`, `TorchStaff`, `FXDarkLight`). `UpdateDarkRoom` skips a light that
+    is `LightDisabled`, or not `AlwaysUse` and in another room, and eases `Radius` toward
+    `DefaultRadius × radiusMultiplier`. A Unity light alone does nothing there. Other findings:
+    `nightVisionEnabled` (a tinted see-in-the-dark mode, off), `EnemyDarknessDisabled`,
+    `RPC_SetLightsEnabledRanged` (puts lights out in a radius), `FastLightManager` (the game's
+    own 16-light shader system; `FXLight` converts a Unity Light into one unless
+    `forceRealtime`/`pcShadowCaster`; plain realtime lights still render on PCVR). The mod's
+    light potion is an `FXDarkLight` (created inactive, `enableDarkRoomSupport`,
+    `darkLightRange`, `AlwaysUse`, `state = Burning`, then activated; `Start` registers it) plus
+    a realtime point light on the same object, on the drinker's `AvatarPlayer.Head`, until the
+    lobby loads. Local only since 0.9.20 (0.9.19 sent `L|radius` so modded peers drew the same
+    pair on the drinker's head; the user wanted it seen by the drinker alone).
 
 ## The basement vendors and where the kobold overlaps them (2026-09-04)
 

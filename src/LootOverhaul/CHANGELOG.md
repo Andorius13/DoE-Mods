@@ -3,6 +3,28 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.9.20 (2026-10-02)
+
+### Changed
+- The Light Potion is local only: the `L|radius` loot message and the copy of the light on other players' heads are gone. Only the drinker sees it.
+
+## 0.9.19 (2026-09-28)
+
+After the 2026-09-27 game update. Untested in headset.
+
+### Fixed
+- Armor and tonics did nothing. The exosuit stats became getter-only properties over a four-slot perk table; every write threw `ArgumentException` (`buffs applied (…): Arms_Power: ArgumentException, …`). The multiplier is now a postfix on `Exosuit.GetExosuitStat`, which every stat getter jumps to, for the local exosuit only. The base-value restore and the `ResetAll`/`Update` hooks are gone.
+- Run speed: the game computes base × max(1, 0.9 × haste × …); the mod multiplies from at least 1/0.9 so the label's factor is the speed change.
+- Keyboard hotkeys through the Input System package (`Keyboard.current`); a failure logs once.
+- Enchanting self-test: `GenerateMythicWeaponModuleForLocalPlayer` gained a `randomSeed` parameter (−1 = random, as before).
+- Stat descriptions for Stillness, Mystify and Fortune match what the game reads them for.
+
+### Changed
+- The bag gesture reads the game's `XRInput` singleton before the SteamVR actions and logs each toggle.
+
+### Added
+- Light Potion (TONICS tab, three reaches; a share of crypt trinket drops): a realtime light and a crypt darkness reveal on your head until the lobby, shown on modded peers too (`L` opcode).
+
 ## 0.9.18 (2026-09-13)
 
 ### Fixed

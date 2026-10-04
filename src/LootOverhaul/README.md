@@ -1,4 +1,4 @@
-# LootOverhaul 0.9.18 — building
+# LootOverhaul 0.9.20 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -35,6 +35,32 @@ Both prefixes coexist: Harmony chains them and each mod ignores the other's code
 gate rule is the same: private room, every occupant on the identical version and DLL hash of
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
+
+## 0.9.20 — the light potion is yours alone
+
+- **Light Potion is local only.** Only the player who drank it sees its light; nothing is sent
+  to other players.
+
+## 0.9.19 — the 2026-09-27 game update: armor and tonics work again, hotkeys, light potion
+
+- **Armor and tonics apply again.** The update turned every exosuit stat into a read-only
+  property over a four-slot perk table (`Exosuit.GetExosuitStat`); the mod's writes threw and
+  nothing was applied all session. The multiplier is now applied where the game reads the
+  stat, for your own exosuit only. Run speed works from the game's new 0.9 factor, so a
+  ×1.15 run-speed piece is 15% faster. Details in the design doc.
+- **Run speed is off in friendly fire**, like jump and leap: the game now skips the haste
+  multiplier while `FriendlyFireEnabled` is on (the sandbox hazard choice).
+- **Stat labels:** Still Water is regeneration while standing still, Mystic Draught makes
+  enemy shots miss more, Lucky Coin Tea raises the end-of-run coin reward.
+- **Keyboard hotkeys** read the Input System (the game switched to it; the old calls threw
+  every frame). Same keys.
+- **Bag gesture** reads the game's own controller input first (works on the new OpenXR
+  backends), and logs when it opens or closes the bag.
+- **Light Potion** at the kobold's TONICS tab (Minor 6 m / Major 9 m / Grand 13 m, 80 / 200 /
+  450 × `ShopPriceMultiplier`), and a fifth of trinket drops in crypt dungeons are a Minor
+  one. Drink it and a light follows your head until you return to the lobby. In the crypts it
+  also reveals the darkness around you the way a torch does. (0.9.20: only you see it.)
+- The enchanting self-test runs again (it failed to load against the new game).
 
 ## 0.9.15 — enchant what you hold, compare armor, walk-over trinkets
 

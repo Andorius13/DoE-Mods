@@ -184,7 +184,7 @@ namespace LootOverhaul.Loot
             Buffs.RebuildWorn();
             BagManager.Toast($"Wearing {live.ColoredName}: {DescribeStats(live)}");
             if (Buffs.LegPerksGatedOff() && (live.ArmorStats ?? "").Contains("Legs_"))
-                BagManager.Toast("The game has friendly fire on here (the sandbox does this): it ignores every jump and leap perk until it is off.");
+                BagManager.Toast("The game has friendly fire on here (the sandbox does this): it ignores every run speed, jump and leap perk until it is off.");
             ReconLog.Line($"armor: wear {live.Name} [{SlotNames[live.ArmorSlot]}] {DescribeStats(live)}");
             BagPanel.Refresh(); Booth.Refresh();
         }

@@ -180,8 +180,7 @@ namespace LootOverhaul.Loot
                 }
                 else if (item.IsBuff)
                 {
-                    var d = Buffs.Find(item.BuffStat);
-                    second = $"<color=#9A9A9A>tonic · {(d == null ? item.BuffStat : d.Flavor)} ×{item.BuffMult:0.00}</color>";
+                    second = $"<color=#9A9A9A>tonic · {Buffs.Effect(item.BuffStat, item.BuffMult)}</color>";
                 }
                 else if (item.IsArmor)
                     second = $"<color=#9A9A9A>{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor · {Armor.DescribeStats(item)}</color>";

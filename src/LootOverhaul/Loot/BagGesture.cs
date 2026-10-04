@@ -7,14 +7,14 @@ using Interop = LootOverhaul.Recon.Interop;
 namespace LootOverhaul.Loot
 {
     /// <summary>
-    /// Opening the bag without a keyboard. Reads the game's own SteamVR actions
-    /// (<c>othergate_Thumbstick</c>, <c>othergate_HandTrigger</c>) for the right hand:
+    /// Opening the bag without a keyboard. Reads the right stick and grip through the game's
+    /// <c>XRInput</c> singleton, or its SteamVR actions (<c>othergate_Thumbstick</c>,
+    /// <c>othergate_HandTrigger</c>) while that is not up yet:
     ///  - "stick-hold" (default): right stick held straight up for <c>BagGestureHoldSeconds</c>.
     ///    The right stick only snap-turns left/right, so up is free.
     ///  - "back-grip": right hand behind and below the head, grip squeezed, stick up. The
     ///    back holsters have large grab zones, so this one fights the game; kept as an option.
-    /// Only SteamVR/OpenVR rigs have these actions; on other rigs the reads throw once, the
-    /// gesture logs that and stays off, and the keyboard key still works.
+    /// A failed read logs once and retries; the keyboard key still works.
     /// </summary>
     public static class BagGesture
     {
@@ -29,14 +29,27 @@ namespace LootOverhaul.Loot
             if (Time.unscaledTime < _retryAt) return;
             try
             {
-                // The action set is null until SteamVR input is up (a NullReference in the main
-                // menu on 2026-09-02), so a failure means "try again in a few seconds", not "off".
-                var stickAction = SteamVR_Actions.othergate_Thumbstick;
-                var gripAction = SteamVR_Actions.othergate_HandTrigger;
-                if (stickAction == null || gripAction == null) { _retryAt = Time.unscaledTime + 3f; return; }
-                var stick = stickAction.GetAxis(SteamVR_Input_Sources.RightHand);
-                var grip = gripAction.GetAxis(SteamVR_Input_Sources.RightHand);
-                if (!_readyLogged) { _readyLogged = true; Core.Log.Msg($"Bag gesture reading SteamVR actions ({mode})."); }
+                // The game's own input layer first: XRInput is the singleton every backend
+                // implements (OpenVRInput, and since the 2026-09-27 update SteamOpenXRInput and
+                // SteamFrameInput, where the SteamVR actions below do not exist).
+                Vector2 stick; float grip; string source;
+                var xr = XRInput.IsValid ? XRInput.Instance : null;
+                if (xr != null)
+                {
+                    stick = xr.rightThumbstick; grip = xr.rightHandTrigger; source = xr.GetIl2CppType().Name;
+                }
+                else
+                {
+                    // The action set is null until SteamVR input is up (a NullReference in the main
+                    // menu on 2026-09-02), so a failure means "try again in a few seconds", not "off".
+                    var stickAction = SteamVR_Actions.othergate_Thumbstick;
+                    var gripAction = SteamVR_Actions.othergate_HandTrigger;
+                    if (stickAction == null || gripAction == null) { _retryAt = Time.unscaledTime + 3f; return; }
+                    stick = stickAction.GetAxis(SteamVR_Input_Sources.RightHand);
+                    grip = gripAction.GetAxis(SteamVR_Input_Sources.RightHand);
+                    source = "SteamVR actions";
+                }
+                if (!_readyLogged) { _readyLogged = true; Core.Log.Msg($"Bag gesture reading {source} ({mode})."); }
                 var up = stick.y > 0.75f && Mathf.Abs(stick.x) < 0.5f;
                 var active = mode == "stick-hold" ? up : up && grip > 0.6f && HandBehindBack();
 
@@ -45,13 +58,14 @@ namespace LootOverhaul.Loot
                 if (!_fired && Time.unscaledTime - _heldSince >= Mathf.Max(0.15f, ModConfig.BagGestureHoldSeconds.Value))
                 {
                     _fired = true;
+                    Core.Log.Msg($"Bag gesture: stick held up — bag {(BagPanel.IsOpen ? "closing" : "opening")}.");
                     BagPanel.Toggle();
                 }
             }
             catch (Exception e)
             {
                 _failures++;
-                if (!_loggedOnce) { _loggedOnce = true; Core.Log.Warning($"Bag gesture: SteamVR actions not readable yet ({e.GetType().Name}); retrying every few seconds. The [ key always works."); }
+                if (!_loggedOnce) { _loggedOnce = true; Core.Log.Warning($"Bag gesture: controller input not readable yet ({e.GetType().Name}); retrying every few seconds. The [ key always works."); }
                 _retryAt = Time.unscaledTime + (_failures > 20 ? 30f : 3f);
             }
         }
