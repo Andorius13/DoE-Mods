@@ -1,5 +1,15 @@
 # PartyHealth changelog
 
+## 0.1.2 — 2026-09-28 (game update: Input System)
+
+The 2026-09-27 game update switched active input handling to the Input System package, so every
+`UnityEngine.Input.GetKeyDown` threw InvalidOperationException, every frame, and each one was
+logged as `Hotkey threw` (386,211 lines in the first session). H / J / K now read
+`Keyboard.current` (new `Hotkeys.cs`); a missing keyboard reads as no key, and an exception turns
+the hotkeys off with one warning. Hooks re-checked against the new dump: all seven RPCs still have
+their own addresses; `RPC_OnDamaged` gained a trailing `riposteTriggered` parameter, which the
+positional postfix does not read. The first post-update session tracked a friend's health fine.
+
 ## 0.1.1 — 2026-09-13 (distance growth halved)
 
 **The bar no longer looms at range.** 0.1.0 grew it in proportion to distance beyond three

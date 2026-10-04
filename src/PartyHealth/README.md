@@ -1,4 +1,4 @@
-# PartyHealth 0.1.1
+# PartyHealth 0.1.2
 
 A mod for **Dungeons of Eternity** that puts a small, quiet health bar over each friend's head
 in a networked game, so you know who needs a potion or a rescue without asking.
@@ -15,6 +15,12 @@ Your friends need nothing installed: the game already tells every client what ha
 player's health, and this mod only listens. It sends nothing over the network, never touches
 your own avatar, and does not affect your profile, character, progression or save games. The
 base game has no such option (its only health-bar setting is for bosses).
+
+## What's new in 0.1.2
+
+For the 2026-09-27 game update, which switched the game to Unity's newer input system. 0.1.1's
+keys (H, J, K) stopped working and wrote a warning to the log every frame, hundreds of thousands
+of lines a session; 0.1.2 reads the keyboard the new way. The bars themselves were unaffected.
 
 ## Install
 
@@ -36,7 +42,7 @@ Find it by **right-clicking the game in Steam → Manage → Browse local files*
 4. **Launch.** The MelonLoader console should show:
 
    ```
-   PartyHealth 0.1.1 — a health bar over each friend's head.
+   PartyHealth 0.1.2 — a health bar over each friend's head.
    Patches: 7 installed, 0 refused, 0 failed.
    ```
 

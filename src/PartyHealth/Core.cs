@@ -4,7 +4,7 @@ using PartyHealth;
 using PartyHealth.Hud;
 using PartyHealth.Peers;
 
-[assembly: MelonInfo(typeof(Core), "PartyHealth", "0.1.1", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "PartyHealth", "0.1.2", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace PartyHealth
@@ -19,7 +19,7 @@ namespace PartyHealth
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.1";
+        public const string Version = "0.1.2";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -47,12 +47,12 @@ namespace PartyHealth
             if (!ModConfig.HotkeysEnabled.Value) return;
             try
             {
-                if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.H))
+                if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.H))
                 {
                     HealthBars.Hidden = !HealthBars.Hidden;
                     LoggerInstance.Msg(HealthBars.Hidden ? "Bars hidden (H again to show)." : "Bars shown.");
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.J))
+                else if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.J))
                 {
                     if (HealthBars.TryEyes(out var pos, out var fwd))
                     {
@@ -62,7 +62,7 @@ namespace PartyHealth
                     }
                     else LoggerInstance.Msg("No camera yet; the demo needs you in a scene.");
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.K))
+                else if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.K))
                 {
                     MelonPreferences.Load();
                     LoggerInstance.Msg("Settings reloaded from MelonPreferences.cfg.");
