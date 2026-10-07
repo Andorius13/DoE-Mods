@@ -3,6 +3,45 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.0 (2026-10-07)
+
+### Changed
+- **The drop roll is off by default.** `EnemyDropsEnabled` now defaults to `false`: nothing spawns on
+  an enemy death and nothing past the early return in `DropRoller.OnKilled` is calculated. The drop
+  system itself is **untouched** — its 25 settings, the boss and mini-boss piles, elites and legends,
+  the loot goblin's pile, party scaling, the legendary pity counter and the rarity weights are all
+  still there, and `EnemyDropsEnabled = true` brings the behaviour back exactly as it was. It is off
+  because playtesting reported stutter that grew with more piles, more enemies and more players,
+  alongside a floor full of items to pick up — reported, not measured; the setting is one line away
+  from back on.
+- **The end screen pays tokens.** The gold the end screen already reports is converted with
+  `GoldToTokenRate` and the bonuses in `[LootOverhaul]` (bosses, mini-bosses, hazards, tier, extra
+  players, chests). Bonuses only ever add. A completed run and a wipe both pay, because both report
+  gold. Weapons now come from tokens and the Shopkeeper as well as from drops.
+- **No death malus.** Deaths and last stands are still *recorded* — per player in the end-screen
+  breakdown and in `runs.csv` — but nothing is charged for them. The run's own gold already reflects
+  how it went: a wipe, or dying early, costs the quest reward, and charging deaths on top would take
+  the same failure out of the payout twice. It also cannot work in solo, where a death is a last
+  stand the game files under `revives` rather than `deaths`. `DeathMalusPerDeath`, `DownMalusPerRevive`
+  and `MinPayoutFraction` are gone.
+- **`TokenPlayerBonusPerExtraPlayer` is now 0.5** (was 0.25): +50% per party member beyond the first,
+  which is what makes the lost last stand worth trading.
+- The payout message is reposted on a timer for `TokenToastSeconds`: the game's notifications have a
+  short fixed life and ignore their own display-time field, so raising it changed nothing.
+- Boss and mini-boss kills are counted in one place: `Recon/GameplayHooks.cs` owns the `AI.OnKilled`
+  patch, and one postfix feeds the payout counter, the drop roll and the recon transcript.
+  (`Hooks.Patch` only refuses a *different* method that shares a native address, so a second patch
+  would have been permitted — one owner simply keeps the three consumers on exactly the same kills.)
+
+- **Upgrades migrate themselves once.** MelonPreferences keeps whatever value is already saved, so a
+  changed default never reaches an existing `MelonPreferences.cfg`. A `[LootOverhaul_Dev]
+  ConfigVersion` entry drives a one-off migration that sets `EnemyDropsEnabled = false` on an older
+  config and bumps to 10.
+
+### Added
+- `Loot/Tokens.cs`: the run payout.
+- `[LootOverhaul_Dev] RunLogging`, default off: one row per run in `UserData/LootOverhaul/runs.csv`.
+
 ## 0.9.20 (2026-10-02)
 
 ### Changed
