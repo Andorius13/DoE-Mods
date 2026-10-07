@@ -36,6 +36,63 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.10.0 — the end screen pays in tokens; the drop roll is off by default
+
+**The drop roll is disabled, not removed.** `EnemyDropsEnabled` defaults to `false`, so an enemy
+death spawns nothing and nothing past the early return in `DropRoller.OnKilled` is calculated. Every
+part of the drop system is still in the code and still configurable — the drop chances, the boss and
+mini-boss piles, elites and legends, the loot goblin's pile, party scaling, the legendary pity
+counter and the rarity weights. Set `EnemyDropsEnabled = true` and it behaves exactly as it did
+before. It is off by default because playtesting reported stutter that grew with more piles, more enemies
+and more players, alongside a floor full of items to pick up — reported, not measured. Upgrading from
+an older version sets it to `false` once, automatically.
+
+New weapons come from tokens and the Shopkeeper. At the end of a run, the gold the end screen
+already reports is converted:
+
+```
+tokens = floor( gold × GoldToTokenRate × (1 + bonuses) )
+```
+
+Bonuses only ever **add**: there is no malus and no floor, so the payout is never less than the plain
+conversion of the gold earned.
+
+The `[LootOverhaul]` settings:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `GoldToTokenRate` | 0.5 | tokens per gold of payout, before bonuses |
+| `BossKillBonus` | 0.5 | +50% per boss killed in the run |
+| `MinibossKillBonus` | 0.1 | +10% per mini-boss killed |
+| `HazardBonusPerLevel` | 0.25 | +25% per hazard level the run had (0–3) |
+| `TierBonusPerLevel` | 0.1 | +10% per dungeon tier above the first |
+| `TokenPlayerBonusPerExtraPlayer` | 0.5 | +50% per party member beyond you — the trade for losing last stand |
+| `TokenChestBonusPerChest` | 0.02 | +2% per chest you opened |
+| `TokenToastSeconds` | 5 | seconds the payout message stays on screen |
+
+A completed run and a wipe both pay, because both report gold.
+
+**No death malus.** Deaths and last stands are *recorded* — per player in the end-screen breakdown and
+in `runs.csv` — because they are the best clue to how hard a run actually was, which is what these
+bonuses get tuned against. They are not charged. The run's gold already reflects how it went: a wipe,
+or dying early, costs the quest reward, so charging deaths on top would take the same failure out of
+the payout twice. And it cannot work in solo at all — the game's `deaths` stat ignores a player who
+was downed and revived, so a solo run that went down twice still reads `deaths=0`; the counter it uses
+instead is `revives`, which is logged but likewise not charged.
+
+The game does not track boss or mini-boss kills, so they are counted from `AI.OnKilled`. One owner
+(`Recon/GameplayHooks.cs`) holds that patch, and its single postfix feeds the payout counter, the drop
+roll and the recon line — one owner keeps all three on exactly the same kills.
+
+The payout runs behind the same gate as the rest of the mod: in a public room, or one with an unmodded
+or version-mismatched peer, LootOverhaul is inert and **nothing is credited**. The reason is written to
+the log.
+
+Collecting data is opt-in and off by default: `[LootOverhaul_Dev] RunLogging` appends one row per
+run to `UserData/LootOverhaul/runs.csv` — gold, tier, hazards, bosses, deaths, the multiplier, the
+tokens paid and the settings in force. When the column set changes, the old file is renamed rather
+than appended to, so earlier rows stay readable.
+
 ## 0.9.20 — the light potion is yours alone
 
 - **Light Potion is local only.** Only the player who drank it sees its light; nothing is sent

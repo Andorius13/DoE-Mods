@@ -36,12 +36,12 @@ namespace LootOverhaul.Loot
         public static int RollsSeen, Dropped, JunkDropped;
         private static bool _tierLogged;
 
-        public static void Install()
-        {
-            Hooks.Patch(typeof(AI), "OnKilled", null, Hooks.Of(typeof(DropRoller), nameof(OnKilled)), paramCount: 2);
-        }
-
-        private static void OnKilled(AI __instance, int __0, int __1)
+        /// <summary>
+        /// The roll itself. Called by <c>Recon/GameplayHooks.cs</c>, which owns the single
+        /// AI.OnKilled patch (two owners would be refused by <c>Hooks.Patch</c>), and only does
+        /// anything when <c>EnemyDropsEnabled</c> is on — which it is not by default.
+        /// </summary>
+        public static void OnKilled(AI __instance, int __0, int __1)
         {
             try
             {

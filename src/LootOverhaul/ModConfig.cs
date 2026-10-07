@@ -105,10 +105,35 @@ namespace LootOverhaul
         /// <summary>Re-apply the booth loadout after every holster fill. Off means the booth only sells.</summary>
         public static MelonPreferences_Entry<bool> LoadoutEnabled;
 
+        // ---- tokens: the run's end-screen gold, converted -------------------------------
+        /// <summary>Tokens per gold earned on the end screen. 0.5 = 2000 gold becomes 1000 tokens.</summary>
+        public static MelonPreferences_Entry<float> GoldToTokenRate;
+        /// <summary>Extra payout per boss killed in the run. 0.5 = +50%.</summary>
+        public static MelonPreferences_Entry<float> BossKillBonus;
+        /// <summary>Extra payout per mini-boss killed. 0.1 = +10%.</summary>
+        public static MelonPreferences_Entry<float> MinibossKillBonus;
+        /// <summary>Extra payout per hazard level the run had (the game's HazardLevel, 0-3).</summary>
+        public static MelonPreferences_Entry<float> HazardBonusPerLevel;
+        /// <summary>Extra payout per dungeon tier above the first. 0.1 = tier 7 pays +60%.</summary>
+        public static MelonPreferences_Entry<float> TierBonusPerLevel;
+        /// <summary>Extra payout per party member beyond you. The lost last stand is the cost, and it
+        /// is the main thing that makes a party worth playing: 0.5 = 2p +50%, 4p +150%.</summary>
+        public static MelonPreferences_Entry<float> TokenPlayerBonusPerExtraPlayer;
+        /// <summary>Extra payout per chest you opened. Keep it small; chests are ordinary play.</summary>
+        public static MelonPreferences_Entry<float> TokenChestBonusPerChest;
+        /// <summary>Seconds the payout toast stays up. It is reposted; see TokenToastRepeatSeconds.</summary>
+        public static MelonPreferences_Entry<float> TokenToastSeconds;
+        /// <summary>How often the payout toast is reposted while it is being kept up.</summary>
+        public static MelonPreferences_Entry<float> TokenToastRepeatSeconds;
+
         // ---- [LootOverhaul_Dev] ---------------------------------------------------------
         public static MelonPreferences_Entry<bool> VerboseLogging;
+        /// <summary>Append one row per run to UserData/LootOverhaul/runs.csv, for tuning. Off by default.</summary>
+        public static MelonPreferences_Entry<bool> RunLogging;
         /// <summary>Install the read-only recon hooks and write a transcript. The v0.1 build is nothing but this.</summary>
         public static MelonPreferences_Entry<bool> ReconEnabled;
+        /// <summary>Internal: the config layout this file was last migrated to. Do not edit.</summary>
+        public static MelonPreferences_Entry<int> ConfigVersion;
         /// <summary>Log every PlayerProfile write (the PlayFab watchdog). Off only if it turns out to be noisy.</summary>
         public static MelonPreferences_Entry<bool> ProfileWatchEnabled;
         public static MelonPreferences_Entry<bool> HotkeysEnabled;
@@ -119,7 +144,8 @@ namespace LootOverhaul
         {
             Main = MelonPreferences.CreateCategory("LootOverhaul");
             Enabled = Main.CreateEntry("Enabled", true);
-            EnemyDropsEnabled = Main.CreateEntry("EnemyDropsEnabled", true);
+            EnemyDropsEnabled = Main.CreateEntry("EnemyDropsEnabled", false,
+                description: "The enemy-death drop roll. OFF by default: nothing spawns and nothing past an early return is calculated. Turn it on to bring the drop system back exactly as it was.");
             BaseDropChance = Main.CreateEntry("BaseDropChance", 0.015f);
             BagWeightCapacity = Main.CreateEntry("BagWeightCapacity", 30f);
             BossDropChance = Main.CreateEntry("BossDropChance", 1.0f, description: "Chance, 0–1, for each piece of a boss's or mini-boss's pile after the guaranteed first one.");
@@ -177,8 +203,20 @@ namespace LootOverhaul
             BoothYaw = Main.CreateEntry("BoothYaw", Loot.Booth.DefaultYaw, description: "Degrees. Press = in the lobby to place the booth where you stand, facing you.");
             BoothPlaced = Main.CreateEntry("BoothPlaced", false, description: "Set by =. When false the mod's built-in lobby spot is used regardless of BoothX/Y/Z/Yaw.");
 
+            GoldToTokenRate = Main.CreateEntry("GoldToTokenRate", 0.5f, description: "Tokens per gold earned on the end screen. 0.5 = 2000 gold becomes 1000 tokens. This is the whole payout before the bonuses below.");
+            BossKillBonus = Main.CreateEntry("BossKillBonus", 0.5f, description: "Extra payout per boss killed in the run. 0.5 = +50%.");
+            MinibossKillBonus = Main.CreateEntry("MinibossKillBonus", 0.1f, description: "Extra payout per mini-boss killed. 0.1 = +10%. They usually come in packs.");
+            HazardBonusPerLevel = Main.CreateEntry("HazardBonusPerLevel", 0.25f, description: "Extra payout per hazard level the run had (the game's HazardLevel, 0-3). 0.25 = +25% / +50% / +75%.");
+            TierBonusPerLevel = Main.CreateEntry("TierBonusPerLevel", 0.1f, description: "Extra payout per dungeon tier above the first. 0.1 = tier 7 pays +60%.");
+            TokenPlayerBonusPerExtraPlayer = Main.CreateEntry("TokenPlayerBonusPerExtraPlayer", 0.5f, description: "Extra payout per party member beyond you: 0.5 = solo +0%, 2p +50%, 4p +150%. Compensates for losing last stand, which solo play keeps.");
+            TokenChestBonusPerChest = Main.CreateEntry("TokenChestBonusPerChest", 0.02f, description: "Extra payout per chest you opened. 0.02 = +2% each.");
+            TokenToastSeconds = Main.CreateEntry("TokenToastSeconds", 5f, description: "Seconds the payout toast stays on screen. The game's notification has a short fixed life and ignores its own display-time field, so the message is reposted for this long. 0 = post it once.");
+            TokenToastRepeatSeconds = Main.CreateEntry("TokenToastRepeatSeconds", 2f, description: "How often the payout toast is reposted while it is being kept up. 0 disables keeping it up.");
+
             Dev = MelonPreferences.CreateCategory("LootOverhaul_Dev");
             VerboseLogging = Dev.CreateEntry("VerboseLogging", false);
+            RunLogging = Dev.CreateEntry("RunLogging", false,
+                description: "Append one row per run to UserData/LootOverhaul/runs.csv: gold, tier, hazards, bosses, deaths, the multiplier and the tokens paid. Off by default. Old rows are kept when the format changes.");
             ReconEnabled = Dev.CreateEntry("ReconEnabled", true,
                 description: "Read-only recon hooks + transcript in UserData/LootOverhaul/recon/. The 0.1 build does nothing else.");
             ProfileWatchEnabled = Dev.CreateEntry("ProfileWatchEnabled", true,
@@ -186,6 +224,19 @@ namespace LootOverhaul
             HotkeysEnabled = Dev.CreateEntry("HotkeysEnabled", true,
                 description: "Insert = generator survey, Delete = spawn test weapon, Backslash = lobby survey, Scroll Lock = button test.");
             MirrorReconToConsole = Dev.CreateEntry("MirrorReconToConsole", false);
+
+            // ---- one-off migrations -------------------------------------------------------
+            // MelonPreferences keeps whatever value is already saved, so changing a default in code
+            // never reaches an install that has the entry - it has to be migrated once.
+            ConfigVersion = Dev.CreateEntry("ConfigVersion", 0);
+            if (ConfigVersion.Value < 10)
+            {
+                EnemyDropsEnabled.Value = false;
+                ConfigVersion.Value = 10;
+                MelonPreferences.Save();
+                MelonLogger.Msg("LootOverhaul config migrated to 10: EnemyDropsEnabled set to false "
+                              + "(0.10.0 ships the enemy drop roll off by default).");
+            }
         }
     }
 }

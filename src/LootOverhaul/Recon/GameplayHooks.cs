@@ -18,8 +18,10 @@ namespace LootOverhaul.Recon
         public static void Install()
         {
             var t = typeof(GameplayHooks);
-            // 4. enemy death — the drop-roll hook. The [PunRPC] overload (int, int).
-            Hooks.Patch(typeof(AI), "OnKilled", null, Hooks.Of(t, nameof(AI_OnKilled)), paramCount: 2);
+            // (4. enemy death is not patched here: InstallKillHook below owns it, because the run
+            // payout needs it whether or not recon is on. Hooks only refuses a *different* method
+            // that shares a native address, so a second patch here would have been permitted - but
+            // one owner keeps the payout counter, the drop roll and this transcript on one event.)
             // chest loot — the bonus-roll hook. NOT Chest.OnLootCollected: its base body is empty
             // and shares the universal stub address (the 0.1.0 crash). These two have real bodies.
             Hooks.Patch(typeof(Chest), "EV_ChestOpened", null, Hooks.Of(t, nameof(Chest_Opened)));
@@ -44,10 +46,18 @@ namespace LootOverhaul.Recon
             catch { return "?"; }
         }
 
-        private static void AI_OnKilled(AI __instance, int __0, int __1)
+        /// <summary>The single AI.OnKilled hook: payout counting, the drop roll, and recon.</summary>
+        public static void InstallKillHook() =>
+            Hooks.Patch(typeof(AI), "OnKilled", null, Hooks.Of(typeof(GameplayHooks), nameof(AI_OnKilled)), paramCount: 2);
+
+        public static void AI_OnKilled(AI __instance, int __0, int __1)
         {
             try
             {
+                Loot.Tokens.CountKill(__instance);
+                if (ModConfig.EnemyDropsEnabled.Value)                 // off by default: not even called
+                    Loot.DropRoller.OnKilled(__instance, __0, __1);
+                if (!ModConfig.ReconEnabled.Value) return;
                 var pos = Interop.Alive(__instance) ? Interop.Vec(__instance.transform.position) : "?";
                 var name = Interop.Alive(__instance) ? __instance.name : "<dead proxy>";
                 string type = "?", armor = "?";
