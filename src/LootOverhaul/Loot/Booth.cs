@@ -288,7 +288,7 @@ namespace LootOverhaul.Loot
                 UiKit.Text(row.transform, new Vector3(textStart, -0.03f, 0f), textW, 0.045f, SubSize, stats, fit: true);
                 PriceText(row.transform, priceX, $"<color={priceColor}>{item.Value} tk</color>");
                 var captured = item;
-                UiKit.Button(row.transform, new Vector3(buyX, 0f, 0f), afford ? "BUY" : "NEED MORE", () => { if (Shop.Buy(captured)) Rebuild(); }, BtnScale, enabled: afford);
+                UiKit.Button(row.transform, new Vector3(buyX, 0f, 0f), afford ? "BUY" : $"NEED {item.Value} tk", () => { if (Shop.Buy(captured)) Rebuild(); }, BtnScale, enabled: afford);
             }
             if (stock.Count == 0)
                 UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Sold out.", TextAlignmentOptions.Center);
@@ -408,7 +408,7 @@ namespace LootOverhaul.Loot
                     var afford = inv.Gold >= price;
                     UiKit.Text(row.transform, new Vector3(textX, 0.03f, 0f), textW, 0.05f, TitleSize, $"{item.ColoredName}{equipped}", fit: true);
                     UiKit.Text(row.transform, new Vector3(textX, -0.03f, 0f), textW, 0.045f, SubSize,
-                        $"<color=#B0B0B0>slots {Enchanting.UsedSlots(item)}/{Enchanting.Slots(item.WeaponClass)}   element {(item.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, item.DamageType)])}   <color={(afford ? "#F5C542" : "#B04040")}>{price} tokens</color> per enchantment</color>", fit: true);
+                        $"<color=#B0B0B0>slots {Enchanting.UsedSlots(item)}/{Enchanting.Slots(item.WeaponClass)}   element {(item.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, item.DamageType)])}   <color={(afford ? "#F5C542" : "#E06060")}>{price} tokens</color> per enchantment</color>", fit: true);
                     var captured = item;
                     UiKit.Button(row.transform, new Vector3(bx, 0f, 0f), "SELECT", () => { _enchantTarget = captured.Id; BuildBuy(); }, BtnScale);
                 }
@@ -429,7 +429,7 @@ namespace LootOverhaul.Loot
             var tprice = Enchanting.Price(target);
             UiKit.Text(_buy, new Vector3(left, top - 0.22f, 0f), PanelWidth - 0.08f, 0.05f, 0.34f,
                 $"<color=#B0B0B0>has: {Enchanting.PerkName(target.PerkA)} {Enchanting.PerkName(target.PerkB)} {Enchanting.PerkName(target.PerkC)}   element {(target.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, target.DamageType)])}   " +
-                $"each costs <color={(inv.Gold >= tprice ? "#F5C542" : "#B04040")}>{tprice} tokens</color> · you have {inv.Gold}{(tslot >= 0 ? " · stays in your hand" : "")}</color>", fit: true);
+                $"each costs <color={(inv.Gold >= tprice ? "#F5C542" : "#E06060")}>{tprice} tokens</color> · you have {inv.Gold}{(tslot >= 0 ? " · stays in your hand" : "")}</color>", fit: true);
             var options = Enchanting.Options(target);
             var y1 = top - 0.28f;
             var col = 0; var rowI = 0;
@@ -561,7 +561,8 @@ namespace LootOverhaul.Loot
                     UiKit.Button(_buy, new Vector3(cx3[1] - 0.2f, hy, 0f), "<", () => { _armorPage = (_armorPage + n - 1) % n; BuildBuy(); }, BtnScale * 0.55f);
                     UiKit.Button(_buy, new Vector3(cx3[1] + 0.2f, hy, 0f), ">", () => { _armorPage = (_armorPage + 1) % n; BuildBuy(); }, BtnScale * 0.55f);
                 }
-            }            UiKit.Bar(_buy, new Vector3(0f, top - 0.655f, 0.004f), PanelWidth - 0.04f, 0.004f, new Color(0.25f, 0.3f, 0.4f, 1f));
+            }
+            UiKit.Bar(_buy, new Vector3(0f, top - 0.655f, 0.004f), PanelWidth - 0.04f, 0.004f, new Color(0.25f, 0.3f, 0.4f, 1f));
 
             // ---- one stat per row
             var y0 = top - 0.72f;
