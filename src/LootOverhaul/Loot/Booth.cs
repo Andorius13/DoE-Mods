@@ -410,7 +410,7 @@ namespace LootOverhaul.Loot
                     row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
                     Stripe(row.transform, i, StripeBuy);
                     UiKit.Preview(row.transform, new Vector3(left + 0.055f, 0f, -0.03f), item, 0.1f);
-                UiKit.TypeTag(row.transform, new Vector3(left + UiKit.TagX, 0f, 0f), item);
+                    UiKit.TypeTag(row.transform, new Vector3(left + UiKit.TagX, 0f, 0f), item);
                     var slot = inv.EquippedSlotOf(item);
                     var equipped = slot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[slot]}</color>" : "";
                     var price = Enchanting.Price(item);
