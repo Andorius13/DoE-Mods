@@ -187,7 +187,7 @@ namespace LootOverhaul.Loot
             public string Label;       // "Run speed"
             public string WornText;    // "Run speed ×1.20", or "-" when the worn piece lacks it
             public string NewText;     // same for the bag piece
-            public string Net;         // the change only, coloured: "+1.21", "-1.15", "+0.07" (the stat name is already in the row); empty without a bag piece
+            public string Net;         // the change only, coloured: "+0.21", "-0.15", "+0.07" (the stat name is already in the row); empty without a bag piece
             public int Verdict;        // 1 better or new, -1 worse or lost, 0 same
         }
 
@@ -216,8 +216,8 @@ namespace LootOverhaul.Loot
                 if (hasC) row.NewText = $"{label} {sign}{c:0.00}";
                 if (candidate != null)
                 {
-                    if (hasC && !hasW) { row.Net = $"<color=#5BD75B>+{c:0.00}</color>"; row.Verdict = 1; }
-                    else if (hasW && !hasC) { row.Net = $"<color=#E06060>-{w:0.00}</color>"; row.Verdict = -1; }
+                    if (hasC && !hasW) { row.Net = $"<color=#5BD75B>+{c - 1f:0.00}</color>"; row.Verdict = 1; }
+                    else if (hasW && !hasC) { row.Net = $"<color=#E06060>-{w - 1f:0.00}</color>"; row.Verdict = -1; }
                     else
                     {
                         var diff = c - w;
