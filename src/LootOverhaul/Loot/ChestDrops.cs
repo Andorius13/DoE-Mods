@@ -24,6 +24,9 @@ namespace LootOverhaul.Loot
         private static readonly HashSet<int> Rolled = new HashSet<int>();
         public static int Dropped;
 
+        /// <summary>A new scene means new chests, and the game may reuse object ids: forget which ones have rolled.</summary>
+        public static void OnSceneChanged() => Rolled.Clear();
+
         public static void Install() =>
             Hooks.Patch(typeof(Chest), "EV_ChestOpened", null, Hooks.Of(typeof(ChestDrops), nameof(Chest_Opened)));
 

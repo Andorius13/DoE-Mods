@@ -12,6 +12,8 @@ Armor now comes from chests. Enemies still drop nothing.
 - **Mimics drop armor too**, as a chest of their size (medium or epic), in front of them.
 - **Never from:** the crypt (realm Crypts or a dark dungeon, and any chest holding rings or crypt loot), the sandbox, and tutorial, respawner or soul-harvest chests.
 - The chest-open hook now runs even with recon off (it used to be recon only).
+- **A chest can roll again in a later run.** The list of chests that already rolled is cleared on every scene change (it lived for the whole session, so a reused chest object would never have dropped again).
+- The README title and the source index show the current version (they still said 0.9.20).
 
 ## 0.10.2 (2026-10-08)
 
