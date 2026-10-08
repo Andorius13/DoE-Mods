@@ -701,9 +701,12 @@ namespace LootOverhaul.Loot
             if (cand != null)
             {
                 var capturedCand = cand;
-                UiKit.Button(_buy, new Vector3(cx3[1] - 0.11f, by, 0f), "WEAR", () => { Armor.Wear(capturedCand); BuildBuy(); }, BtnScale);
+                // WEAR and SELL sit side by side: slightly smaller buttons with a clear gap (the glow edges touched and the pointer flickered between them, report 2026-10-08).
+                var pairScale = BtnScale * 0.8f;
+                var pairOff = BtnW * 0.8f * 0.5f + 0.04f;
+                UiKit.Button(_buy, new Vector3(cx3[1] - pairOff, by, 0f), "WEAR", () => { Armor.Wear(capturedCand); BuildBuy(); }, pairScale);
                 // Sell the piece you just compared, right here; a locked one has to be unlocked on the SELL page first.
-                UiKit.Button(_buy, new Vector3(cx3[1] + 0.11f, by, 0f), "SELL", () => { Sell(capturedCand); }, BtnScale, enabled: !cand.Locked);
+                UiKit.Button(_buy, new Vector3(cx3[1] + pairOff, by, 0f), "SELL", () => { Sell(capturedCand); }, pairScale, enabled: !cand.Locked);
                 UiKit.Text(_buy, new Vector3(cx3[2], by, 0f), colWidth, 0.05f, 0.34f,
                     cand.Locked ? "<color=#B0B0B0>locked, cannot sell</color>" : $"<color=#B0B0B0>sells for</color> <color=#F5C542>{SellPrice(cand)} tk</color>", TextAlignmentOptions.Center, fit: true);
                 if (pieces.Count > 1)

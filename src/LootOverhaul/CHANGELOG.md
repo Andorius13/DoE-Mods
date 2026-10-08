@@ -15,6 +15,10 @@ and earlier are in the version sections of [README.md](README.md).
 - **A fixed price per upgrade step**, set by the piece's rarity and the same for every step and every stat: 750 Common, 1,500 Unique, 3,000 Rare, 6,000 Legendary at the defaults (the enchanting base price × ShopPriceMultiplier). It never rises with the number of upgrades. A luxury and a token sink. Setting: `ArmorUpgradeCostMultiplier` (default 1.0).
 - **Upgrading never changes the sell price**; the item's value is not touched.
 
+### Fixed
+- **WEAR and SELL flickered on the armor page.** The two buttons sat so close that their glow edges touched, and the pointer flipped between them. They are now slightly smaller with a clear gap between them.
+- Review fixes from 0.10.2 are included: a stat only one piece has counts from the neutral 1.0 in the armor comparison, the shop button shows the missing price, and the enchant price colour matches.
+
 ## 0.10.3 (2026-10-08)
 
 ### Changed
