@@ -2,6 +2,14 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.11 (2026-11-13)
+
+### Added
+- `RingSize` (`[CustomAvatars]`, default 1, 0.5 to 4): makes the rings on custom avatars bigger or smaller, on top of the size measured from the finger. On an avatar whose fingers are bigger than the measurement, the ring could sit inside the finger and not be seen. The setting is local: it changes every ring you see, yours, your friends' and the mannequin's, only on your own screen, so each player sets their own. The ring grows around the middle of its band, so it stays on the finger. It is read at startup and on F3, not every frame, and the `Preferences reloaded` line shows it.
+
+### Fixed
+- The mod builds against the current game again. A game update removed `CharacterPrefab.audioTap`, which only one recon log line read; that line is gone.
+
 ## 0.42.10 (2026-10-02)
 
 ### Fixed

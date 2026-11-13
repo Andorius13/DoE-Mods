@@ -34,7 +34,6 @@ namespace CustomAvatars.Recon
             ReconLog.TryKeyValue("jaw angles (closed/open)", () => $"{cp.closedJawAngle} / {cp.openedJawAngle}");
             ReconLog.TryKeyValue("voiceEnergyOverride", () => cp.voiceEnergyOverride);
             ReconLog.TryKeyValue("blinkTime", () => cp.blinkTime);
-            ReconLog.TryKeyValue("audioTap (VivoxParticipantTap)", () => Describe(cp.audioTap));
             ReconLog.TryKeyValue("glancer", () => Describe(cp.glancer));
 
             // FinalIK: PLAN 2b wants to reuse the game's own VRIK/GrounderIK rather than
