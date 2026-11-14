@@ -2,6 +2,11 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.18 (2026-11-14)
+
+### Fixed
+- **A friend's mannequin no longer wears your ring settings.** Every mannequin's rings were treated as yours, so on a mannequin showing another player your per-ring size, position and angles were applied to their rings, and those rings showed even with `RingsOthersVisible` off. A mannequin's rings now follow its owner, re-checked on every scan as a slot can change hands: yours (or an owner-less one in the menu) get your settings, anyone else's get the automatic fit behind `RingsOthersVisible`, like their avatar.
+
 ## 0.42.17 (2026-11-14)
 
 The ring work from 0.42.12–0.42.14 (#14) on top of 0.42.16. No other changes.

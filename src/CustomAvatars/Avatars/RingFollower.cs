@@ -177,7 +177,7 @@ namespace CustomAvatars.Avatars
         }
 
         private readonly string _who;
-        private readonly bool _self;
+        private bool _self;
         private readonly GameObject _model;
         private readonly AvatarManifest _manifest;
         private readonly Func<List<Site>> _findSites;
@@ -189,6 +189,9 @@ namespace CustomAvatars.Avatars
         private List<Site> _sites = new List<Site>();
         private float _nextScanAt, _nextSitesAt;
         private bool _failed;
+
+        /// <summary>Your own avatar (or the mannequin showing it): your ring settings apply. A mannequin can change hands, so its owner check updates this.</summary>
+        public bool Self { get => _self; set => _self = value; }
 
         /// <param name="who">For the log: whose avatar this is.</param>
         /// <param name="self">Your own avatar (or the mannequin showing it): your ring settings apply.</param>
