@@ -3,6 +3,19 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.11.2 (2026-11-14)
+
+A cogwheel at the kobold, for the ring settings of CustomAvatars.
+
+### Added
+- **A cogwheel button** at the right end of the kobold's tab row, smaller than the shop tabs. It opens the ring settings of CustomAvatars for your own avatar:
+  - LEFT RING / RIGHT RING picks which ring the page edits.
+  - SHOW … RING turns that ring on or off. Rings start off.
+  - SIZE, UP/DOWN, SLIDE, TILT, TURN and ROLL each have large `--` `-` `+` `++` buttons. These are drawn by the mod, because the game's buttons left "+" and "-" too small to read.
+  - RESET puts the selected ring's size, position and angles back.
+  - "friends' rings" SHOW/HIDE switches other players' rings on or off.
+- The values are written straight into the `[CustomAvatars]` section of MelonPreferences.cfg and saved at once. CustomAvatars (0.42.14 or later) re-reads them twice a second, so the ring moves as you press. They are local: each player sets their own, and nothing is sent. LootOverhaul finds the settings by name, so neither mod needs the other. Without CustomAvatars the page says so.
+
 ## 0.11.1 (2026-11-13)
 
 An escaped loot goblin no longer drops armor.
