@@ -198,9 +198,7 @@ namespace CustomAvatars.Avatars
                 ResolveOwner(entry, hologram);
                 BuildSecondaryMotion(entry, manifest);
 
-                // The equipment room shows rings on the mannequin too (Hologram_Holster). Your ring
-                // settings apply only when the mannequin is yours; a friend's gets the automatic fit
-                // behind RingsOthersVisible, like their avatar.
+                // The equipment room shows your rings on the mannequin too (Hologram_Holster).
                 var ringRoot = hologram.transform;
                 var ringSource = source;
                 entry.Rings = new RingFollower($"the {avatarName} mannequin", entry.IsSelf, entry.Model, manifest, () =>
@@ -302,7 +300,8 @@ namespace CustomAvatars.Avatars
             // An owner-less mannequin only ever gets a model in the menu, where the only person
             // it could be showing is you — the same reasoning as WantedAvatarFor.
             entry.IsSelf = actor < 0 || actor == localActor;
-            if (entry.Rings != null) entry.Rings.Self = entry.IsSelf;
+            // A friend's mannequin shows their rings with the friends' setting, not your per-ring ones.
+            if (entry.Rings != null) entry.Rings.IsSelf = entry.IsSelf;
         }
 
         private void ApplyEntry(Entry entry, float deltaTime)
