@@ -1,5 +1,19 @@
 # StayPutVR changelog
 
+## 0.5.4 — 2026-11-13
+
+**The armed state is remembered across sessions.** It was meant to be already, but quitting disarms the link so no shock is left latched on in StayPutVR, and that disarm was saved like any other: every quit wrote `Armed = false`, so every session started disarmed. Quitting now only sends any pending release, so nothing is left latched on, without disarming. Arm once and the next launch starts armed (`ARMED (remembered from last session)` in the log); disarm with the sticks and it starts disarmed.
+
+## 0.5.3 — 2026-11-11 (performance)
+
+**The jaw is read with a direct call.** Biting reads CustomAvatars' jaw value every frame; it went through reflection each time (an argument array, boxing, a slow invoke). The call is now bound once. While no jaw parameter arrives, the candidate names are tried once a second instead of every frame. Biting stays on by default.
+
+**The desktop panel is drawn once a frame and its text rebuilt four times a second.** Unity calls the panel's drawing code two or more times a frame, and each call rebuilt every line of text. It now draws only on the repaint pass and reuses the text for a quarter second.
+
+Incoming network messages are checked by their number first, and anything that is not this mod's is ignored before its sender and contents are read. Every Photon event of the game passes through this hook, so this saves an interop call and an allocation per event.
+
+The session log is now written to disk once a second instead of after every line. Before, each line was a synchronous disk write on the game's main thread, so a burst of lines (a fight, a dump) could cost frame time in the headset. If the game crashes hard, at most the last second of the log is missing.
+
 ## 0.5.2 — 2026-10-02 (untested in the headset)
 
 **The staff and life steal stack.** Each staff tick (about one a second) and each life steal now
