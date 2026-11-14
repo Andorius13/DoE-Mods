@@ -306,26 +306,67 @@ namespace LootOverhaul.Loot
             var y = top - 0.15f;
             var tabScale = BtnScale * 0.9f;
             var w = Mathf.Max(BtnW * 0.9f, 0.22f);
-            // Five tabs have to share the panel's width: as generous as that allows.
-            var gap = Mathf.Min(w + 0.1f, (PanelWidth - 0.08f - w) / 4f);
+            var gap = w + 0.1f;
             var x = left + w * 0.5f;
+            // The cogwheel sits at the right end of the row, smaller than the shop tabs.
+            var cogX = PanelWidth * 0.5f - 0.04f - 0.045f;
             // A gold bar under the open tab and a rule under the row, so the current page is never in doubt.
-            UiKit.Bar(_buy, new Vector3(left + w * 0.5f + _buyMode * gap, y - 0.045f, 0.004f), w + 0.04f, 0.005f, new Color(0.96f, 0.77f, 0.26f, 1f));
+            var barX = _buyMode == 4 ? cogX : left + w * 0.5f + _buyMode * gap;
+            var barW = _buyMode == 4 ? 0.09f : w + 0.04f;
+            UiKit.Bar(_buy, new Vector3(barX, y - 0.045f, 0.004f), barW, 0.005f, Gold);
             UiKit.Bar(_buy, new Vector3(0f, y - 0.058f, 0.004f), PanelWidth - 0.04f, 0.004f, new Color(0.25f, 0.3f, 0.4f, 1f));
             UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 0 ? "• WEAPONS" : "WEAPONS", () => { _buyMode = 0; BuildBuy(); }, tabScale); x += gap;
             UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 1 ? "• TONICS" : "TONICS", () => { _buyMode = 1; BuildBuy(); }, tabScale); x += gap;
             UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 2 ? "• ENCHANT" : "ENCHANT", () => { _buyMode = 2; _enchantTarget = null; _enchantHelp = false; _enchantKind = -1; BuildBuy(); }, tabScale); x += gap;
-            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 3 ? "• ARMOR" : "ARMOR", () => { _buyMode = 3; BuildBuy(); }, tabScale); x += gap;
-            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 4 ? "• CONFIG" : "CONFIG", () => { _buyMode = 4; BuildBuy(); }, tabScale);
+            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 3 ? "• ARMOR" : "ARMOR", () => { _buyMode = 3; BuildBuy(); }, tabScale);
+            Cogwheel(_buy, new Vector3(cogX, y, 0f), _buyMode == 4, () => { _buyMode = 4; BuildBuy(); });
         }
 
-        // ---- CONFIG tab: CustomAvatars' ring settings, for you alone ----------------------------
+        private static readonly Color Gold = new Color(0.96f, 0.77f, 0.26f, 1f);
+        private static readonly Color Steel = new Color(0.45f, 0.55f, 0.75f, 1f);
+        private static readonly Color Hole = new Color(0.04f, 0.06f, 0.09f, 1f);
+
+        /// <summary>
+        /// A cogwheel button, drawn from quads: four bars through the middle make eight teeth,
+        /// two squares at 45° make the wheel, and a dark square is the axle hole. Gold when
+        /// its page is open. The hit box is a little larger than the drawing.
+        /// </summary>
+        private static void Cogwheel(Transform parent, Vector3 pos, bool open, Action onPressed)
+        {
+            var c = open ? Gold : Steel;
+            var root = new GameObject("Cogwheel"); root.transform.SetParent(parent, false);
+            root.transform.localPosition = pos;
+            for (var i = 0; i < 4; i++)
+                UiKit.Bar(root.transform, Vector3.zero, 0.062f, 0.014f, c).transform.localRotation = Quaternion.Euler(0f, 0f, i * 45f);
+            UiKit.Bar(root.transform, new Vector3(0f, 0f, -0.001f), 0.04f, 0.04f, c);
+            UiKit.Bar(root.transform, new Vector3(0f, 0f, -0.001f), 0.04f, 0.04f, c).transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            UiKit.Bar(root.transform, new Vector3(0f, 0f, -0.002f), 0.016f, 0.016f, Hole).transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            UiKit.HitBox(parent, pos, 0.09f, 0.08f, onPressed);
+        }
+
+        /// <summary>
+        /// A large button of our own: a lit plate, a frame, a big label and an invisible game
+        /// button over it for the pointer. The game's buttons only scale as a whole, and a small
+        /// one leaves "+" and "-" too small to read (report 2026-11-14).
+        /// </summary>
+        private static void BigButton(Transform parent, Vector3 pos, float w, float h, string label, float size, Action onPressed)
+        {
+            UiKit.Bar(parent, pos + new Vector3(0f, 0f, 0.002f), w, h, new Color(0.1f, 0.16f, 0.3f, 1f));
+            UiKit.Frame(parent, pos, w, h, 0.006f, new Color(0.3f, 0.55f, 1f, 1f));
+            UiKit.Text(parent, pos + new Vector3(0f, 0f, -0.004f), w - 0.012f, h, size, $"<b>{label}</b>", TextAlignmentOptions.Center, fit: true);
+            UiKit.HitBox(parent, pos, w, h, onPressed);
+        }
+
+        // ---- cogwheel tab: CustomAvatars' ring settings, for your own avatar ---------------------
+
+        private static bool _ringLeft = true;   // which ring the page edits
 
         private static void BuildConfig(float top, float left)
         {
-            var resetX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
+            var right = PanelWidth * 0.5f - 0.04f;
+            var resetX = right - BtnW * 0.5f;
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), WidthBefore(resetX, left), 0.06f, HeadSize,
-                "<b>RINGS</b>   <color=#B0B0B0>on custom avatars · only on your screen · saved at once</color>", fit: true);
+                "<b>RINGS</b>   <color=#B0B0B0>on your avatar · only on your screen · saved at once</color>", fit: true);
             if (!RingSettings.Available)
             {
                 UiKit.Text(_buy, new Vector3(0f, top - 0.45f, 0f), PanelWidth - 0.1f, 0.2f, 0.4f,
@@ -333,28 +374,43 @@ namespace LootOverhaul.Loot
                     TextAlignmentOptions.Center, lines: 2);
                 return;
             }
-            UiKit.Button(_buy, new Vector3(resetX, top - 0.05f, 0f), "RESET", () => { RingSettings.ResetAll(); BuildBuy(); }, BtnScale);
+            var side = _ringLeft;
+            UiKit.Button(_buy, new Vector3(resetX, top - 0.05f, 0f), "RESET", () => { RingSettings.Reset(side); BuildBuy(); }, BtnScale);
 
-            const float rowH = 0.115f;
-            var small = BtnScale * 0.62f;
-            var sw = UiKit.ButtonSize.x * small;
-            var step = sw + 0.025f;
-            // Four buttons on the right, from the edge in: ++ + - --.
-            var x4 = PanelWidth * 0.5f - 0.04f - sw * 0.5f;
-            var x3 = x4 - step; var x2 = x3 - step; var x1 = x2 - step;
+            // Which ring, and friends' rings, on one row.
+            var y = top - 0.27f;
+            var selScale = BtnScale * 0.95f;
+            var selW = UiKit.ButtonSize.x * selScale;
+            var leftX = left + selW * 0.5f;
+            var rightX = leftX + selW + 0.05f;
+            UiKit.Button(_buy, new Vector3(leftX, y, 0f), _ringLeft ? "• LEFT RING" : "LEFT RING", () => { _ringLeft = true; BuildBuy(); }, selScale);
+            UiKit.Button(_buy, new Vector3(rightX, y, 0f), !_ringLeft ? "• RIGHT RING" : "RIGHT RING", () => { _ringLeft = false; BuildBuy(); }, selScale);
+            UiKit.Bar(_buy, new Vector3(_ringLeft ? leftX : rightX, y - 0.035f, 0.004f), selW + 0.02f, 0.005f, Gold);
+            var others = RingSettings.OthersVisible;
+            var othersX = right - BtnW * 0.4f;
+            var othersTextW = othersX - BtnW * 0.5f - 0.02f - (rightX + selW * 0.5f + 0.03f);
+            UiKit.Text(_buy, new Vector3(othersX - BtnW * 0.5f - 0.02f - othersTextW, y, 0f), othersTextW, 0.05f, SubSize,
+                $"<color=#B0B0B0>friends' rings</color> {(others ? "<color=#5BD75B>on</color>" : "<color=#E06060>off</color>")}", TextAlignmentOptions.Right, fit: true);
+            UiKit.Button(_buy, new Vector3(othersX, y, 0f), others ? "HIDE" : "SHOW", () => { RingSettings.OthersVisible = !others; BuildBuy(); }, BtnScale * 0.8f);
+
+            // The big buttons: -- - + ++ on the right of each row.
+            const float rowH = 0.112f;
+            const float bw = 0.095f, bh = 0.08f, bgap = 0.018f;
+            var x4 = right - bw * 0.5f;
+            var x3 = x4 - bw - bgap; var x2 = x3 - bw - bgap; var x1 = x2 - bw - bgap;
             var textStart = left + 0.02f;
-            var textW = x1 - sw * 0.6f - 0.02f - textStart;
-            var y = top - 0.28f;
+            var textW = x1 - bw * 0.5f - 0.03f - textStart;
 
-            // On/off first: the one most people want.
-            var on = RingSettings.Visible;
+            // Shown or not: off until the player turns it on.
+            y -= 0.115f;
+            var on = RingSettings.Visible(side);
             var row0 = new GameObject("CfgRow_visible"); row0.transform.SetParent(_buy, false);
             row0.transform.localPosition = new Vector3(0f, y, 0f);
             Stripe(row0.transform, 0, StripeBuy);
             UiKit.Text(row0.transform, new Vector3(textStart, 0f, 0f), textW, 0.05f, TitleSize,
-                $"<b>SHOW RINGS</b>   {(on ? "<color=#5BD75B>on</color>" : "<color=#E06060>off</color>")}", fit: true);
-            UiKit.Button(row0.transform, new Vector3((x3 + x4) * 0.5f, 0f, 0f), on ? "TURN OFF" : "TURN ON",
-                () => { RingSettings.Visible = !on; BuildBuy(); }, BtnScale * 0.8f);
+                $"<b>SHOW {(side ? "LEFT" : "RIGHT")} RING</b>   {(on ? "<color=#5BD75B>on</color>" : "<color=#E06060>off</color>")}", fit: true);
+            BigButton(row0.transform, new Vector3((x3 + x4) * 0.5f, 0f, 0f), bw * 2f + bgap, bh, on ? "TURN OFF" : "TURN ON", 0.42f,
+                () => { RingSettings.SetVisible(side, !on); BuildBuy(); });
 
             for (var i = 0; i < RingSettings.All.Length; i++)
             {
@@ -362,19 +418,16 @@ namespace LootOverhaul.Loot
                 var row = new GameObject($"CfgRow_{s.Key}"); row.transform.SetParent(_buy, false);
                 row.transform.localPosition = new Vector3(0f, y - (i + 1) * rowH, 0f);
                 Stripe(row.transform, i + 1, StripeBuy);
-                UiKit.Text(row.transform, new Vector3(textStart, 0.022f, 0f), textW, 0.045f, TitleSize * 0.9f,
-                    $"<b>{s.Label}</b>   <color=#F5C542>{RingSettings.Show(s)}</color>", fit: true);
-                UiKit.Text(row.transform, new Vector3(textStart, -0.028f, 0f), textW, 0.04f, SubSize * 0.9f,
+                UiKit.Text(row.transform, new Vector3(textStart, 0.02f, 0f), textW, 0.045f, TitleSize * 0.9f,
+                    $"<b>{s.Label}</b>   <color=#F5C542>{RingSettings.Show(side, s)}</color>", fit: true);
+                UiKit.Text(row.transform, new Vector3(textStart, -0.027f, 0f), textW, 0.04f, SubSize * 0.85f,
                     $"<color=#B0B0B0>{s.Help}</color>", fit: true);
                 var captured = s;
-                UiKit.Button(row.transform, new Vector3(x1, 0f, 0f), "--", () => { RingSettings.Nudge(captured, -captured.BigStep); BuildBuy(); }, small);
-                UiKit.Button(row.transform, new Vector3(x2, 0f, 0f), "-", () => { RingSettings.Nudge(captured, -captured.Step); BuildBuy(); }, small);
-                UiKit.Button(row.transform, new Vector3(x3, 0f, 0f), "+", () => { RingSettings.Nudge(captured, captured.Step); BuildBuy(); }, small);
-                UiKit.Button(row.transform, new Vector3(x4, 0f, 0f), "++", () => { RingSettings.Nudge(captured, captured.BigStep); BuildBuy(); }, small);
+                BigButton(row.transform, new Vector3(x1, 0f, 0f), bw, bh, "--", 0.75f, () => { RingSettings.Nudge(side, captured, -captured.BigStep); BuildBuy(); });
+                BigButton(row.transform, new Vector3(x2, 0f, 0f), bw, bh, "-", 0.75f, () => { RingSettings.Nudge(side, captured, -captured.Step); BuildBuy(); });
+                BigButton(row.transform, new Vector3(x3, 0f, 0f), bw, bh, "+", 0.75f, () => { RingSettings.Nudge(side, captured, captured.Step); BuildBuy(); });
+                BigButton(row.transform, new Vector3(x4, 0f, 0f), bw, bh, "++", 0.75f, () => { RingSettings.Nudge(side, captured, captured.BigStep); BuildBuy(); });
             }
-            UiKit.Text(_buy, new Vector3(0f, y - (RingSettings.All.Length + 1) * rowH + 0.01f, 0f), PanelWidth - 0.1f, 0.045f, SubSize,
-                "<color=#B0B0B0>Hold your hand up and watch the ring as you press. Your friends set their own.</color>",
-                TextAlignmentOptions.Center, fit: true);
         }
 
         private static void BuildTonics(float top, float left)
