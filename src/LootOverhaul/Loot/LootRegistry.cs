@@ -406,7 +406,8 @@ namespace LootOverhaul.Loot
     {
         public static void Apply(LootTag tag)
         {
-            if (tag.Item.IsWeapon || tag.Item.IsArmor || tag.Item.IsBuff || tag.Item.PrefabName != "Wolf_Treat") return;
+            if (tag.Item.IsArmor) { ApplyArmor(tag); return; }
+            if (tag.Item.IsWeapon || tag.Item.IsBuff || tag.Item.PrefabName != "Wolf_Treat") return;
             if (!Interop.Alive(tag.Object)) return;
             var color = tag.Item.WeaponClass switch { 0 => new Color(0.55f, 0.42f, 0.30f), 1 => new Color(0.97f, 0.94f, 0.82f), _ => new Color(1.0f, 0.78f, 0.25f) };
             try
@@ -414,11 +415,25 @@ namespace LootOverhaul.Loot
                 foreach (var r in tag.Object.GetComponentsInChildren<MeshRenderer>(true))
                 {
                     if (!Interop.Alive(r)) continue;
-                    try { r.material.color = color; } catch { }
-                    try { r.material.SetColor("_EmissionColor", color * (tag.Item.WeaponClass >= 2 ? 0.35f : 0.05f)); } catch { }
+                    try { UiKit.Tint(r, color, color * (tag.Item.WeaponClass >= 2 ? 0.35f : 0.05f)); } catch { }
                 }
             }
             catch (Exception e) { Core.Log.Warning($"Junk tint failed: {e.GetType().Name}"); }
+        }
+
+        private static void ApplyArmor(LootTag tag)
+        {
+            if (!ModConfig.ArmorTint.Value || !Interop.Alive(tag.Object)) return;
+            if (!ColorUtility.TryParseHtmlString(Armor.ClassColor(tag.Item.WeaponClass), out var color)) return;
+            try
+            {
+                foreach (var r in tag.Object.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    if (!Interop.Alive(r)) continue;
+                    try { UiKit.Tint(r, color, color * 0.4f, enableEmission: true); } catch { }
+                }
+            }
+            catch (Exception e) { Core.Log.Warning($"Armor tint failed: {e.GetType().Name}"); }
         }
     }
 
@@ -492,6 +507,7 @@ namespace LootOverhaul.Loot
                         try { mat.color = color; } catch { }
                         try { mat.EnableKeyword("_EMISSION"); mat.SetColor("_EmissionColor", color * 1.5f); set.Add("_EmissionColor"); } catch { }
                     }
+                    try { if (mat != null) mat.name = BeamMaterialName; } catch { }
                     r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                     r.receiveShadows = false;
                     if (!_logged) { _logged = true; ReconLog.Line($"beam for {tag.Item.Name}: colour {color} on `{from}` (shader `{Shader(mat)}`), properties set: {(set.Count == 0 ? "none" : string.Join(" ", set))}"); }
@@ -519,8 +535,12 @@ namespace LootOverhaul.Loot
             catch { }
         }
 
+        private const string BeamMaterialName = "LootOverhaul beam";
+
         public static void Detach(LootTag tag)
         {
+            // The beam's material is its own copy (Attach); destroying the beam does not free it.
+            try { if (Interop.Alive(tag.Beam)) { var br = tag.Beam.GetComponent<Renderer>(); var bm = Interop.Alive(br) ? br.sharedMaterial : null; if (Interop.Alive(bm) && bm.name == BeamMaterialName) UnityEngine.Object.Destroy(bm); } } catch { }
             try { if (Interop.Alive(tag.Beam)) UnityEngine.Object.Destroy(tag.Beam); } catch { }
             tag.Beam = null;
         }

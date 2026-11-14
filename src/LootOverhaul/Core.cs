@@ -7,7 +7,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.10.6", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.10.10", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -25,7 +25,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.10.6";
+        public const string Version = "0.10.10";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -100,8 +100,11 @@ namespace LootOverhaul
             Tokens.Tick();
             Buffs.Tick();
             LightPotion.Tick();
+            PreparedTonics.Tick();
             Loadout.Tick();
             SceneExit.Tick();
+            LootInventory.Tick();
+            DropRoller.Tick();
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
             {
                 _templateCaptureAt = -1f;
@@ -130,14 +133,17 @@ namespace LootOverhaul
         {
             // The pooled loot bodies outlive the scene; whatever the pre-load hook did not
             // catch is destroyed here, while the room is still the same one.
+            LootInventory.FlushAll();
             LootRegistry.Clear($"scene changed to {sceneName}", destroyOwned: true);
             BagManager.DroppedByMe.Clear();
             Unlocks.Invalidate();
             ChestDrops.OnSceneChanged();
+            DropRoller.OnSceneChanged();
             if (sceneName == Il2Cpp.GameManager.LOBBY_SCENE || sceneName == Il2Cpp.GameManager.MAINMENU_SCENE) { Buffs.ClearAll($"entered {sceneName}"); LightPotion.Clear($"entered {sceneName}"); }
             BagPanel.Hide();
             Booth.Hide();
             Tokens.OnSceneChanged(sceneName);
+            PreparedTonics.OnSceneChanged(sceneName);
             _templateCaptureAt = sceneName == Il2Cpp.GameManager.LOBBY_SCENE ? UnityEngine.Time.unscaledTime + 3f : -1f;
             if (!ModConfig.ReconEnabled.Value) return;
             ReconLog.Section($"Scene initialized: {sceneName} (#{buildIndex})");
@@ -150,6 +156,7 @@ namespace LootOverhaul
 
         public override void OnApplicationQuit()
         {
+            LootInventory.FlushAll();
             LootRegistry.Clear("application quitting", destroyOwned: true);
             ModGate.ForceInert("application quitting");
             if (ModConfig.ReconEnabled.Value)
@@ -167,6 +174,7 @@ namespace LootOverhaul
                 ProfileWatch.Report();
                 ReconLog.Close();
             }
+            LootInventory.FlushAll();
         }
 
         private void OnGateChanged(bool active)

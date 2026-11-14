@@ -32,6 +32,53 @@ namespace LootOverhaul.Loot
     public static class DropRoller
     {
         private static readonly System.Random Rng = new System.Random();
+
+        // Boss and goblin piles are rolled at once but spawned a little apart (0.10.8): a goblin
+        // in a four-player room is up to two dozen pieces, and each one is a weapon generation,
+        // a network instantiate, a label and a sparkle, which in one frame is a visible hitch.
+        private const float PileStagger = 0.06f;
+        private static readonly List<(float Due, Action Spawn)> PileQueue = new List<(float, Action)>();
+        private static float _pileNext;
+
+        /// <summary>Queue one pile piece; the first of a burst spawns this frame.</summary>
+        private static void QueuePile(Action spawn)
+        {
+            var now = Time.unscaledTime;
+            if (PileQueue.Count == 0 && _pileNext <= now) { _pileNext = now + PileStagger; RunPile(spawn); return; }
+            if (_pileNext < now) _pileNext = now;
+            PileQueue.Add((_pileNext, spawn));
+            _pileNext += PileStagger;
+        }
+
+        private static void RunPile(Action spawn)
+        {
+            try
+            {
+                if (!ModGate.Active || !PhotonNetwork.IsMasterClient) { ReconLog.Line("pile piece dropped from the queue (gate closed or no longer the host)"); return; }
+                spawn();
+            }
+            catch (Exception e) { Core.Log.Error($"Pile drop failed: {e}"); }
+        }
+
+        /// <summary>Called every frame from Core: spawn the queued pile pieces whose turn has come.</summary>
+        public static void Tick()
+        {
+            if (PileQueue.Count == 0) return;
+            var now = Time.unscaledTime;
+            while (PileQueue.Count > 0 && PileQueue[0].Due <= now)
+            {
+                var next = PileQueue[0];
+                PileQueue.RemoveAt(0);
+                RunPile(next.Spawn);
+            }
+        }
+
+        /// <summary>A queued piece never lands in the next scene.</summary>
+        public static void OnSceneChanged()
+        {
+            if (PileQueue.Count > 0) ReconLog.Line($"pile: {PileQueue.Count} queued piece(s) dropped on scene change");
+            PileQueue.Clear();
+        }
         private static readonly HashSet<string> BadPrefabs = new HashSet<string>();
         public static int RollsSeen, Dropped, JunkDropped;
         private static bool _tierLogged;
@@ -45,10 +92,13 @@ namespace LootOverhaul.Loot
         {
             try
             {
-                if (!ModConfig.Enabled.Value || !ModConfig.EnemyDropsEnabled.Value || !ModGate.Active) return;
+                var enemyDrops = ModConfig.EnemyDropsEnabled.Value;
+                if (!ModConfig.Enabled.Value || !(enemyDrops || ModConfig.GoblinDropsEnabled.Value) || !ModGate.Active) return;
                 if (!PhotonNetwork.IsMasterClient) return;
                 if (__0 < 0) return;                       // no killer: cleanup, scripted, environmental
                 if (!Interop.Alive(__instance)) return;
+                // With enemy drops off, only the loot goblin rolls (GoblinDropsEnabled).
+                if (!enemyDrops && !Goblins.IsLootGoblin(__instance)) return;
                 if (!ModConfig.SandboxDrops.Value && InSandbox(__instance))
                 {
                     // The practice arena despawns its enemies and their bodies; loot there is free
@@ -70,8 +120,7 @@ namespace LootOverhaul.Loot
                 inv.KillsSinceLegendary++;
 
                 // More players, more loot to share: both chances scale with the room.
-                var players = 1;
-                try { players = Math.Max(1, (int)PhotonNetwork.CurrentRoom.PlayerCount); } catch { }
+                var players = Players();
                 var partyScale = 1f + Math.Max(0f, ModConfig.DropChancePerExtraPlayer.Value) * (players - 1);
                 var pity = ModConfig.LegendaryPityKills.Value > 0 && inv.KillsSinceLegendary >= ModConfig.LegendaryPityKills.Value;
                 var pos = __instance.transform.position + Vector3.up * 1.0f;
@@ -84,12 +133,16 @@ namespace LootOverhaul.Loot
                     // the boss rarity curve. Pieces are kicked around a circle so they do not stack.
                     // The pile grows with the party, with extra health bars, and with the boss's
                     // strength type (Elite, Legend): the many-skull bosses of the 2026-09-08 report.
-                    int pieces, floor; string rankName;
+                    // The goblin drops one shared pile for every player in the room (GoblinDropsScaleWithPlayers): every pile has
+                    // its own guaranteed first piece and its own rolls, and all of them share one
+                    // circle so the piles do not land on top of each other.
+                    int pieces, floor, piles = 1; string rankName;
                     if (goblin)
                     {
                         pieces = Math.Max(1, ModConfig.GoblinDrops.Value);
                         floor = ModConfig.GoblinGuaranteedClass.Value;
                         rankName = "loot goblin";
+                        if (ModConfig.GoblinDropsScaleWithPlayers.Value) piles = players;
                     }
                     else
                     {
@@ -98,19 +151,28 @@ namespace LootOverhaul.Loot
                         rankName = rank == 2 ? "boss" : "mini-boss";
                     }
                     floor = Math.Max(0, Math.Min(3, floor));
+                    var total = pieces * piles;
+                    for (var p = 0; p < piles; p++)
                     for (var i = 0; i < pieces; i++)
                     {
                         if (i > 0 && Rng.NextDouble() >= ModConfig.BossDropChance.Value) continue;
-                        var cls = i == 0 ? Math.Max(floor, RollClass(true, pity)) : RollClass(true, false);
+                        var first = p == 0 && i == 0;
+                        var cls = i == 0 ? Math.Max(floor, RollClass(true, first && pity)) : RollClass(true, false);
                         if (cls == 3) inv.KillsSinceLegendary = 0;
-                        DropPiece(cls, pos, ScatterKick(i, pieces), __0, __instance,
-                            $"{who} {rankName} piece={i + 1}/{pieces} pity={i == 0 && pity}");
+                        var kick = ScatterKick(p * pieces + i, total);
+                        var why = $"{who} {rankName} pile={p + 1}/{piles} piece={i + 1}/{pieces} pity={first && pity}";
+                        var killer = __0; var source = __instance;
+                        QueuePile(() => DropPiece(cls, pos, kick, killer, source, why));
                     }
                     inv.Save();
-                    // Bosses roll their trinket three times as often; the goblin always leaves a few.
-                    var junkRolls = goblin ? Math.Max(1, ModConfig.GoblinJunkRolls.Value) : 1;
+                    // Bosses roll their trinket three times as often. The goblin leaves junk only with GoblinJunk on.
+                    var junkRolls = goblin ? (ModConfig.GoblinJunk.Value ? Math.Max(0, ModConfig.GoblinJunkRolls.Value) * piles : 0) : 1;
                     for (var j = 0; j < junkRolls; j++)
-                        RollJunk(__instance, __0, pos, family, boss || goblin, partyScale, goblin ? 1f : -1f);
+                    {
+                        var jkick = goblin ? ScatterKick(j, junkRolls) * 0.5f : (Vector3?)null;
+                        var killer = __0; var source = __instance; var big = boss || goblin; var jchance = goblin ? 1f : -1f;
+                        QueuePile(() => RollJunk(source, killer, pos, family, big, partyScale, jchance, jkick));
+                    }
                     return;
                 }
 
@@ -261,14 +323,22 @@ namespace LootOverhaul.Loot
             return true;
         }
 
+        /// <summary>Players in the room (at least 1), or DropPlayersOverride when it is set.</summary>
+        public static int Players()
+        {
+            var o = ModConfig.DropPlayersOverride.Value;
+            if (o > 0) return Math.Min(8, o);
+            try { return Math.Max(1, (int)PhotonNetwork.CurrentRoom.PlayerCount); } catch { return 1; }
+        }
+
         /// <summary>Maybe a trinket. Critters included (a scorpion can sit on a bone); bosses three times as often, on top of their pile. <paramref name="chance"/> ≥ 0 overrides the roll (1 = always).</summary>
-        private static void RollJunk(AI source, int killerActor, Vector3 pos, int family, bool boss, float partyScale, float chance = -1f)
+        private static void RollJunk(AI source, int killerActor, Vector3 pos, int family, bool boss, float partyScale, float chance = -1f, Vector3? kick = null)
         {
             var junkChance = chance >= 0f ? chance : Math.Min(1f, ModConfig.JunkDropChance.Value * (family == 1 ? 0.5f : 1f) * (boss ? 3f : 1f) * partyScale);
             if (Rng.NextDouble() >= junkChance) return;
             var sourceName = "?"; try { sourceName = source.name; } catch { }
             // A prefab that refuses is retired inside SpawnLoot; try up to three bodies so the drop is not lost.
-            var gentle = Vector3.up * 1.2f + new Vector3((float)(Rng.NextDouble() - 0.5), 0f, (float)(Rng.NextDouble() - 0.5)) * 0.6f;
+            var gentle = kick ?? Vector3.up * 1.2f + new Vector3((float)(Rng.NextDouble() - 0.5), 0f, (float)(Rng.NextDouble() - 0.5)) * 0.6f;
             for (var attempt = 0; attempt < 3; attempt++)
             {
                 // The crypt is black by shader; some of its trinkets are light potions instead.

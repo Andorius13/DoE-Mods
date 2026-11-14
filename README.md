@@ -44,16 +44,16 @@ The [INSTALL.md](INSTALL.md) walks through the steps in more detail.
 
 | Mod | Version | Needs everyone modded? |
 |---|---|---|
-| [CustomAvatars](src/CustomAvatars/README.md) | 0.42.8 | Yes |
-| [LootOverhaul](src/LootOverhaul/README.md) | 0.9.14 | Yes |
-| [VisualCues](src/VisualCues/README.md) | 0.1.3 | No |
-| [Descent](src/Descent/README.md) | 0.1.0 | Yes |
-| [StayPutVR](src/StayPutVR/README.md) | 0.4.0 | No |
-| [PartyHealth](src/PartyHealth/README.md) | 0.1.1 | No |
+| [CustomAvatars](src/CustomAvatars/README.md) | 0.42.17 | Yes |
+| [LootOverhaul](src/LootOverhaul/README.md) | 0.10.10 | Yes |
+| [VisualCues](src/VisualCues/README.md) | 0.1.5 | No |
+| [Descent](src/Descent/README.md) | 0.1.1 | Yes |
+| [StayPutVR](src/StayPutVR/README.md) | 0.5.4 | No |
+| [PartyHealth](src/PartyHealth/README.md) | 0.1.3 | No |
 
 ## Restrictions
 
-- **Private lobbies only.** Anything that touches other players is protected by a handshake that checks the room is private and every occupant is on the same build.
+- **Private lobbies only, for anything that touches other players.** Sending anything, seeing friends' avatars and changing your size are protected by a handshake that checks the room is private and every occupant is on the same build. Wearing your own avatar is local, so CustomAvatars allows it in any lobby; in a public one nothing is sent and everyone else stays vanilla.
 - **Never write to the player's account.** Doesn't write to the PlayFab
 - **No redistribution of game assets.** Decompilation output and extracted assets stay out of the repo.
 
