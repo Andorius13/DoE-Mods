@@ -1,4 +1,4 @@
-# CustomAvatars 0.42.10
+# CustomAvatars 0.42.16
 
 Wear a VRChat-style avatar in Dungeons of Eternity, in a private lobby with friends who run the
 same build. Face and eye tracking come from VRCFaceTracking over OSC, full-body tracking from
@@ -17,6 +17,12 @@ The design notes are in [docs/PLAN.md](../../docs/PLAN.md) and
 - **Face and eyes** from VRCFaceTracking, on a socket that stands in for VRChat, forwarded to peers
   at a fixed 10 Hz and only when a shape actually moved.
 - **Full-body tracking** from SteamVR pucks, with a T-pose calibration, and synced to peers.
+- **Loading-screen faces.** The circle of party faces on the loading screen shows each player's
+  custom avatar instead of their vanilla character, wearing the expression they chose as their
+  load face in the avatar room. The vanilla face shapes (happy, angry, surprise and so on) are
+  translated into Unified Expressions, so the avatar needs face-tracking shapes to show it; one
+  without them shows a neutral face. Friends' faces appear only once the gate has put their
+  avatar on, like everything else.
 - **Hand poses** from trigger and grip, and **spring bones** for secondary motion, rebuilt from the
   captured PhysBone setup.
 - **Rings** you wear sit on your avatar's own finger, for you and for everyone who can see you,
@@ -36,8 +42,12 @@ Nothing that other players can see happens unless the gate is open: the room is 
 player count matches the roster, and the self-checksum passed. Watch for `*** ModGate ACTIVE` or
 `*** ModGate INERT` with the reason attached.
 
-Your own avatar is drawn on a weaker condition — a private room with no vanilla player — because
-in a solo room there is nobody to affect.
+Your own avatar is drawn in any lobby, public or with vanilla players, because it only changes what
+your machine draws: your body, your mannequin, your loading-screen face, your face and full-body
+tracking on your own model. In such a lobby nothing is sent and nobody else is changed — vanilla
+players see your vanilla character. Your **size** is not local (it scales the body the game
+networks and your hit capsules), so it applies only in the menu or with the gate open; anywhere
+else you are normal size and the setting waits.
 
 ## Install
 
