@@ -3,6 +3,11 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.11.3 (2026-11-14)
+
+### Changed
+- The ring page's SIZE goes from x0.05 to x10 (was x0.5 to x4). At a playtest a left ring started far too big and could not be shrunk enough. CustomAvatars 0.42.19 (#18) fixes the starting size and accepts the same range; an older CustomAvatars still holds the ring to 0.5–4 whatever the page shows.
+
 ## 0.11.2 (2026-11-14)
 
 A cogwheel at the kobold, for the ring settings of CustomAvatars.
