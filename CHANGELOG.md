@@ -2,6 +2,34 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.16 (2026-11-13)
+
+### Changed
+- **Your own avatar works in any lobby.** Wearing it, the F6 preview, your mannequin and your loading-screen face only change what your machine draws, so `ModGate.LocalVisuals` is now on wherever the self-checksum passed, public rooms and rooms with vanilla players included. Before, it was held to private all-modded rooms and the menu as a matter of policy. Nothing else moved: every send still goes through `ModNet`'s `ModGate.Active` check, the roster still publishes your identity only in a private room, peers' avatars, faces, hands and trackers still wait for the open gate, and vanilla players see your vanilla character.
+- **Your size depends on the lobby.** A size scales the body the game networks and your hit capsules, so it now applies only with the gate open (a private room, everyone on this build) or outside a room. Until now it applied everywhere, public lobbies included. In any other lobby you are normal size, `Size: x… held at normal size — …` says why, and the setting is kept for when the lobby allows it. An engaged size is given two seconds' grace before it is dropped, because the gate shuts for up to half a second every time someone joins.
+- Owner-less mannequins take your avatar only outside a room, as before; that check now asks Photon directly rather than relying on the gate being shut.
+
+## 0.42.15 (2026-11-13)
+
+Numbered after 0.42.12–0.42.14, which are taken by the ring work still in review (#14).
+
+### Added
+- **The loading screen's circle of faces shows custom avatars.** When a round starts (or ends), the game shows each player's face in a circle with their name under it, in the expression they chose as their load face. For anyone wearing a custom avatar, that picture is now a headshot of their avatar. The game draws the circle in `UILoadScreen.UpdateAvatar`, from `AvatarPlayer.CharacterThumbnail`; a postfix renders our own picture and puts it in place of that texture on the slot's material. The avatar is a throwaway copy at a far-off point on layer 31, which only our camera draws: built, given the face, rendered once and destroyed in the same frame. The picture is kept per player until their avatar or load face changes.
+- **The load face carries over.** A load face is a cosmetic (`CharacterPrefab.avatarModules.loadFace`) whose `blendShapeDefs` weight the vanilla face's own shapes: relaxed, idle, happy, angry, sad, surprise, pain, tired, the two blinks and ten visemes. There is no ARKit or UE shape on the vanilla mesh, so each one is translated into the Unified Expressions movements that make it up (happy is the mouth corners pulled up with cheek and eye squint, surprise is wide eyes, raised brows and an open jaw, and so on), and a jaw `boneRotationDef` opens the jaw. An avatar without face-tracking shapes shows a neutral face. A vanilla shape with no translation is named in the log line as `(no translation)` and otherwise skipped.
+- Friends' faces follow the gate: a peer only has a custom avatar to show once the gate has put it on them, so a public room or a vanilla player keeps the game's pictures.
+- Log lines: `Load screen: `<avatar>` headshot for <who> — load face <shapes>; <size>, face <driver result>, <n> expression value(s) set.` once per new picture, and `Load screen: slot <n> (<who>) picture replaced in <property> on `<shader>`.` once per player and outcome. The framing (head plus 7 cm, camera 0.6 m away at 28°, both scaled by head height) and the background (read from the corner of the vanilla picture) are first guesses for the first headset test.
+
+## 0.42.11 (2026-11-11)
+
+### Fixed
+- **Re-wearing an avatar no longer piles up copies of it in memory.** A size step, the T-pose rebind or F4 twice released the avatar's bundle and loaded it again a moment later. The release unloaded the bundle but kept its textures and meshes, so every re-wear added another full copy of the avatar until the next scene. A bundle nobody wears is now kept loaded for 30 s and reused if it is worn again in that time.
+
+### Changed
+- The recon dump no longer reads `CharacterPrefab.audioTap`, which a game update removed; that one line stopped the mod from compiling against the current game.
+- Face tracking builds the three addresses it looks each shape up under once per shape, instead of on every lookup (a few hundred throwaway strings a frame while tracking). The addresses and their order are unchanged.
+- Incoming network messages are checked by their number first, and anything that is not this mod's is ignored before its sender and contents are read. Every Photon event of the game passes through this hook, so this saves an interop call and an allocation per event. The recon event sniffer (`LogPhotonEvents`) still counts every code and still logs each new one with its sender.
+- The session log is now written to disk once a second instead of after every line. Before, each line was a synchronous disk write on the game's main thread, so a burst of lines (a fight, a dump) could cost frame time in the headset. If the game crashes hard, at most the last second of the log is missing. Applies to the recon transcript.
+
 ## 0.42.10 (2026-10-02)
 
 ### Fixed
