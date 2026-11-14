@@ -32,6 +32,10 @@
     <NoWarn>$(NoWarn);CS0649;CS0169;CS0108;CS0114</NoWarn>
     <DebugType>portable</DebugType>
     <Deterministic>true</Deterministic>
+    <!-- The SDK otherwise appends the git commit to the informational version, so the same
+         source built at a later commit gets a new DLL hash and the gates (which compare
+         hashes) see a different build. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
 </Project>
