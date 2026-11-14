@@ -2,6 +2,10 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.17 (2026-11-14)
+
+The ring work from 0.42.12–0.42.14 (#14) on top of 0.42.16. No other changes.
+
 ## 0.42.16 (2026-11-13)
 
 ### Changed
@@ -18,6 +22,34 @@ Numbered after 0.42.12–0.42.14, which are taken by the ring work still in revi
 - **The load face carries over.** A load face is a cosmetic (`CharacterPrefab.avatarModules.loadFace`) whose `blendShapeDefs` weight the vanilla face's own shapes: relaxed, idle, happy, angry, sad, surprise, pain, tired, the two blinks and ten visemes. There is no ARKit or UE shape on the vanilla mesh, so each one is translated into the Unified Expressions movements that make it up (happy is the mouth corners pulled up with cheek and eye squint, surprise is wide eyes, raised brows and an open jaw, and so on), and a jaw `boneRotationDef` opens the jaw. An avatar without face-tracking shapes shows a neutral face. A vanilla shape with no translation is named in the log line as `(no translation)` and otherwise skipped.
 - Friends' faces follow the gate: a peer only has a custom avatar to show once the gate has put it on them, so a public room or a vanilla player keeps the game's pictures.
 - Log lines: `Load screen: `<avatar>` headshot for <who> — load face <shapes>; <size>, face <driver result>, <n> expression value(s) set.` once per new picture, and `Load screen: slot <n> (<who>) picture replaced in <property> on `<shader>`.` once per player and outcome. The framing (head plus 7 cm, camera 0.6 m away at 28°, both scaled by head height) and the background (read from the corner of the vanilla picture) are first guesses for the first headset test.
+## 0.42.14 (2026-11-14)
+
+### Changed
+- **Rings are off until you turn them on**, so a ring that would be placed badly never shows by surprise. Each of your own rings now has its own settings: `Ring{Left|Right}Visible` (default false), `…Size`, `…Offset` (up from the back of the hand, in finger radii), `…Slide` (toward the fingertip), and `…Tilt`, `…Turn`, `…Roll` in degrees. Tilt tips the top of the ring toward the fingertip, turn points it toward the thumb, and roll turns its top toward the little finger. Turn and roll are mirrored on the right hand. Size and the angles pivot on the band's centre.
+- The settings apply to **your own avatar only** (and the mannequin showing it). Other players' fingers are not yours, so their rings get the automatic fit alone, behind one switch, `RingsOthersVisible` (default false).
+- The settings apply live. They are re-read twice a second, so a change in LootOverhaul's cogwheel tab at the kobold, or in the file, shows on the hand with no F3. The F3 line prints both rings.
+- `RingSize`, `RingOffset` and `RingSlide` from 0.42.12–0.42.13 are replaced by the per-ring settings and no longer read.
+
+### Fixed
+- The left-hand ring was not fitted. The log said `ring hole not measurable`, and the ring kept the game's fit while the right one was fitted. When the band's vertices can't be read, or they don't make a plausible band, the hole is now estimated from the band mesh's bounds: the narrower extent across the finger is the outside, and the hole is three quarters of it. The `ring:` line says which measurement was used and why, so a hand that still isn't fitted can be told apart.
+
+## 0.42.13 (2026-11-14)
+
+### Added
+- `RingOffset` (`[CustomAvatars]`, default 0, -5 to 5): lifts the rings on custom avatars off the finger toward the back of the hand, in finger radii (negative is toward the palm). It means the same direction on both hands. This is for avatars where the ring sinks into the top of the finger.
+- `RingSlide` (`[CustomAvatars]`, default 0, -1 to 1): moves the rings along the finger, as a share of the finger bone's length. Positive is toward the fingertip.
+- Both are local like `RingSize`: they are read at startup and on F3, and shown in the `Preferences reloaded` line.
+
+### Changed
+- **Rings are fitted to the avatar's finger instead of copying the game's fit.** Before, the ring kept the game's placement around its own finger, off-centre and loose on a thin finger, which on a thicker avatar finger left the band sunk in. Now, where the avatar's finger was measured from its mesh, the band is centred on that finger and sized so that its hole is 1.1x the finger's radius. The hole's size and centre are read from the ring's own generated mesh: the band's inner surface, ignoring any stone on top. The distance along the finger and the roll still come from the game. Where either mesh can't be read, the old copy is used. The `ring:` line says which was done (`hole fitted around the finger`). `RingSize`, `RingOffset` and `RingSlide` apply on top, as fine-tuning.
+
+### Fixed
+- Rings on the equipment-room mannequin were measured against a finger on another copy of the skeleton, not the one the ring hangs on: the log said `79962% along the segment`, which puts the ring metres away. The finger is now the ring holster's own parent, with its neighbours from the same rig. A ring that still measures far off its finger (more than half a segment beyond either end, or four radii to the side) is logged as not believed and put in the middle of the segment instead.
+
+## 0.42.12 (2026-11-13)
+
+### Added
+- `RingSize` (`[CustomAvatars]`, default 1, 0.5 to 4): makes the rings on custom avatars bigger or smaller, on top of the size measured from the finger. On an avatar whose fingers are bigger than the measurement, the ring could sit inside the finger and not be seen. The setting is local: it changes every ring you see, yours, your friends' and the mannequin's, only on your own screen, so each player sets their own. The ring grows around the middle of its band, so it stays on the finger. It is read at startup and on F3, not every frame, and the `Preferences reloaded` line shows it.
 
 ## 0.42.11 (2026-11-11)
 

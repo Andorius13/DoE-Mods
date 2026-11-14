@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.16", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.17", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.42.16";
+        public const string Version = "0.42.17";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -54,6 +54,7 @@ namespace CustomAvatars
         {
             Instance = this;
             ModConfig.Load();
+            RingFollower.RefreshSize();
             // MelonLoader only writes MelonPreferences.cfg when something saves it, which
             // otherwise means on quit. Save once now so a fresh install has a complete,
             // readable settings file to edit before the first clean exit rather than after it.
@@ -336,7 +337,8 @@ namespace CustomAvatars
                                        $"gravity x{ModConfig.SpringGravityScale.Value}, drag {ModConfig.SpringDragBase.Value}, " +
                                        $"colliders {ModConfig.SpringCollidersEnabled.Value}");
                     LoggerInstance.Msg($"Preferences reloaded — swap: {AvatarSwapper.DescribeSettings()}");
-                    LoggerInstance.Msg($"Preferences reloaded — AvatarSize {PlayerSize.Wanted():0.00}, " +
+                    RingFollower.RefreshSize();
+                    LoggerInstance.Msg($"Preferences reloaded — AvatarSize {PlayerSize.Wanted():0.00}, left ring {RingFollower.Left}, right ring {RingFollower.Right}, others' rings {(RingFollower.Others.Visible ? "on" : "off")}, " +
                                        $"SizeMoveSpeedBlend {ModConfig.SizeMoveSpeedBlend.Value:0.00}");
                     if (!ModConfig.SwapUseVrik.Value)
                         LoggerInstance.Warning("*** SwapUseVrik is FALSE — swapped avatars will T-pose. " +
