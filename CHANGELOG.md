@@ -4,7 +4,10 @@ Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This f
 
 ## 0.42.17 (2026-11-14)
 
-The ring work from 0.42.12–0.42.14 (#14) on top of 0.42.16. No other changes.
+The ring work from 0.42.12–0.42.14 (#14) on top of 0.42.16.
+
+### Fixed
+- A friend's mannequin no longer wears your ring settings. Every mannequin passed "this is you" to the ring code, so a mannequin that belongs to another player (`AvatarHologram.Owner`) got your per-ring size, position and angles on their rings, and showed them even with `RingsOthersVisible` off. A mannequin now counts as yours only when nobody owns it (the menu) or you do, and this is re-checked on every scan, because a mannequin slot can change hands.
 
 ## 0.42.16 (2026-11-13)
 

@@ -201,7 +201,7 @@ namespace CustomAvatars.Avatars
                 // The equipment room shows your rings on the mannequin too (Hologram_Holster).
                 var ringRoot = hologram.transform;
                 var ringSource = source;
-                entry.Rings = new RingFollower($"the {avatarName} mannequin", true, entry.Model, manifest, () =>
+                entry.Rings = new RingFollower($"the {avatarName} mannequin", entry.IsSelf, entry.Model, manifest, () =>
                 {
                     var sites = new List<RingFollower.Site>();
                     SkinnedMeshRenderer skin = null;
@@ -300,6 +300,8 @@ namespace CustomAvatars.Avatars
             // An owner-less mannequin only ever gets a model in the menu, where the only person
             // it could be showing is you — the same reasoning as WantedAvatarFor.
             entry.IsSelf = actor < 0 || actor == localActor;
+            // A friend's mannequin shows their rings with the friends' setting, not your per-ring ones.
+            if (entry.Rings != null) entry.Rings.IsSelf = entry.IsSelf;
         }
 
         private void ApplyEntry(Entry entry, float deltaTime)

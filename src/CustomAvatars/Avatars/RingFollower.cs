@@ -177,7 +177,8 @@ namespace CustomAvatars.Avatars
         }
 
         private readonly string _who;
-        private readonly bool _self;
+        /// <summary>Your own rings: your per-ring settings apply. A mannequin can change hands, so its owner sets this on every scan.</summary>
+        public bool IsSelf { get; set; }
         private readonly GameObject _model;
         private readonly AvatarManifest _manifest;
         private readonly Func<List<Site>> _findSites;
@@ -196,7 +197,7 @@ namespace CustomAvatars.Avatars
         public RingFollower(string who, bool self, GameObject model, AvatarManifest manifest, Func<List<Site>> findSites)
         {
             _who = who;
-            _self = self;
+            IsSelf = self;
             _model = model;
             _manifest = manifest;
             _findSites = findSites;
@@ -533,19 +534,19 @@ namespace CustomAvatars.Avatars
             var tube = ring.Avatar;
             if (tube == null || !Interop.Alive(tube.Bone)) return;
             var isLeft = ring.Site.Bone <= HumanBodyBones.LeftLittleDistal;
-            var look = !_self ? Others : isLeft ? Left : Right;
+            var look = !IsSelf ? Others : isLeft ? Left : Right;
             if (!look.Visible)
             {
                 if (ring.T.localScale != Vector3.zero) ring.T.localScale = Vector3.zero;
                 return;
             }
             // Someone else's ring: the fit alone, none of your tuning.
-            var size = _self ? look.Size : 1f;
-            var up = _self ? look.Offset : 0f;
-            var slide = _self ? look.Slide : 0f;
-            var tiltDeg = _self ? look.Tilt : 0f;
-            var turnDeg = _self ? look.Turn : 0f;
-            var rollDeg = _self ? look.Roll : 0f;
+            var size = IsSelf ? look.Size : 1f;
+            var up = IsSelf ? look.Offset : 0f;
+            var slide = IsSelf ? look.Slide : 0f;
+            var tiltDeg = IsSelf ? look.Tilt : 0f;
+            var turnDeg = IsSelf ? look.Turn : 0f;
+            var rollDeg = IsSelf ? look.Roll : 0f;
 
             var rPer = ring.UseMesh ? tube.RadiusPerLength : FallbackRadiusPerLength;
             var cPer = ring.UseMesh ? tube.CentrePerLength : Vector2.zero;
