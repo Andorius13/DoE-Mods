@@ -3,6 +3,16 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.11.2 (2026-11-14)
+
+A CONFIG tab at the kobold, for the ring settings of CustomAvatars.
+
+### Added
+- **CONFIG**, a fifth tab beside ARMOR. It holds CustomAvatars' ring settings: show rings on/off, size, up/down, slide along the finger, and tilt, turn and roll. Each setting has `--` `-` `+` `++` buttons, and RESET puts them all back. The values are written straight into the `[CustomAvatars]` section of MelonPreferences.cfg and saved at once. CustomAvatars (0.42.14 or later) re-reads them twice a second, so the ring moves as you press. They are local: each player sets their own, and nothing is sent. LootOverhaul finds the settings by name, so neither mod needs the other. Without CustomAvatars the tab says so.
+
+### Changed
+- The tab row is spaced to fit five tabs.
+
 ## 0.11.1 (2026-11-13)
 
 An escaped loot goblin no longer drops armor.
