@@ -52,8 +52,8 @@ longer exist.
 | `[LootOverhaul]` | `Enabled` |
 | `[LootOverhaul_ChestArmor]` | `ChestArmorEnabled`, `ChestArmorSmall` / `Medium` / `Epic` / `Boss` (chance per chest size: 0.10 / 0.25 / 1 / 1), `ChestArmorScalesWithPlayers` |
 | `[LootOverhaul_Goblin]` | `GoblinDropsEnabled`, `GoblinDrops` (2), `GoblinGuaranteedClass` (1 = Unique), `GoblinDropsScaleWithPlayers`, `LootGoblinScale` (1.1) |
-| `[LootOverhaul_FloorLoot]` | `DropBeams` (on), `BeamMinClass` (2 = Rare), `DropLabels` (off / hover / always), `DropSparkles`, `DropSound` (start / finish / collected / off) |
-| `[LootOverhaul_Bag]` | `BagWeightCapacity` (60), `BagGesture` (stick-hold / back-grip / off), `AutoPickup` (off) |
+| `[LootOverhaul_FloorLoot]` | `DropBeams` (off), `BeamMinClass` (2 = Rare), `DropLabels` (off / hover / always), `DropSparkles`, `DropSound` (start / finish / collected / off) |
+| `[LootOverhaul_Bag]` | `BagWeightCapacity` (30), `BagGesture` (stick-hold / back-grip / off), `AutoPickup` (off) |
 | `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier`, `ShopSlots`, `ShopRefreshMinutes`, `EnchantCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
 | `[LootOverhaul_Tokens]` | `GoldToTokenRate` and the payout bonuses per boss, mini-boss, hazard level, tier, extra player and chest |
 | `[LootOverhaul_Booth]` | the booth's position, set by pressing = in the lobby |

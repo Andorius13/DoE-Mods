@@ -14,7 +14,7 @@ namespace LootOverhaul
     /// </summary>
     public static class ModConfig
     {
-        public const int Layout = 11;
+        public const int Layout = 12;
 
         public static MelonPreferences_Category Main, ChestArmor, Goblin, FloorLoot, Bag, Shop, TokenPay, BoothPos, Dev;
 
@@ -90,14 +90,14 @@ namespace LootOverhaul
             LootGoblinScale = Goblin.CreateEntry("LootGoblinScale", 1.1f, description: "Size of the loot goblin (1 = the game's size).");
 
             FloorLoot = MelonPreferences.CreateCategory("LootOverhaul_FloorLoot");
-            DropBeams = FloorLoot.CreateEntry("DropBeams", true, description: "A rarity-coloured beam of light over armor on the floor.");
+            DropBeams = FloorLoot.CreateEntry("DropBeams", false, description: "A rarity-coloured beam of light over armor on the floor.");
             BeamMinClass = FloorLoot.CreateEntry("BeamMinClass", 2, description: "Lowest rarity that gets a beam: 0 Common, 1 Unique, 2 Rare, 3 Legendary.");
             DropLabels = FloorLoot.CreateEntry("DropLabels", "off", description: "Name over loot on the floor: off, hover (only while you look at it or reach for it), or always.");
             DropSparkles = FloorLoot.CreateEntry("DropSparkles", true, description: "The coin pile's sparkle over loot on the floor.");
             DropSound = FloorLoot.CreateEntry("DropSound", "finish", description: "Sound when armor lands: start, finish, collected (three coin-pile sounds), or off for silence.");
 
             Bag = MelonPreferences.CreateCategory("LootOverhaul_Bag");
-            BagWeightCapacity = Bag.CreateEntry("BagWeightCapacity", 60f, description: "How much the bag holds, in weight units.");
+            BagWeightCapacity = Bag.CreateEntry("BagWeightCapacity", 30f, description: "How much the bag holds, in weight units.");
             BagGesture = Bag.CreateEntry("BagGesture", "stick-hold", description: "How the bag opens in VR: stick-hold (hold the right stick up), back-grip (right hand behind your back, grip and push the stick up), or off.");
             AutoPickup = Bag.CreateEntry("AutoPickup", false, description: "Walk over tonics, trinkets and armor to put them in the bag without grabbing them.");
 
@@ -133,7 +133,8 @@ namespace LootOverhaul
             DropPlayersOverride = Dev.CreateEntry("DropPlayersOverride", 0, description: "Testing: count this many players for chest armor and goblin piles. 0 = the real room size.");
             ConfigVersion = Dev.CreateEntry("ConfigVersion", 0, description: "Internal. Do not edit.");
 
-            if (ConfigVersion.Value < Layout) Migrate(old);
+            if (ConfigVersion.Value == 11) RepairLayout11();
+            else if (ConfigVersion.Value < Layout) Migrate(old);
         }
 
         private static readonly string[] OldMainKeys =
@@ -155,7 +156,60 @@ namespace LootOverhaul
         private static readonly string[] OldDevKeys = { "ReconEnabled", "ProfileWatchEnabled", "HotkeysEnabled", "MirrorReconToConsole" };
 
         /// <summary>
-        /// Layout 11 (0.11.0): every value a player kept moves from the old flat [LootOverhaul]
+        /// Defaults of the 0.10.10 settings the migration carries. A value equal to its old default
+        /// was never chosen by the player, so it is left behind and the new default applies.
+        /// </summary>
+        private static readonly Dictionary<string, object> OldDefaults = new Dictionary<string, object>
+        {
+            ["ChestArmorEnabled"] = true, ["ChestArmorScalesWithPlayers"] = true, ["GoblinDropsEnabled"] = true,
+            ["GoblinDropsScaleWithPlayers"] = true, ["DropBeams"] = false, ["DropSparkles"] = true, ["LoadoutEnabled"] = true,
+            ["BoothPlaced"] = false, ["ChestArmorSmall"] = 0.10f, ["ChestArmorMedium"] = 0.25f, ["ChestArmorEpic"] = 1.0f,
+            ["ChestArmorBoss"] = 1.0f, ["LootGoblinScale"] = 1.5f, ["BagWeightCapacity"] = 30f, ["ShopPriceMultiplier"] = 2.5f,
+            ["SellMultiplier"] = 1.0f, ["EnchantCostMultiplier"] = 1.0f, ["ArmorUpgradeCostMultiplier"] = 1.0f, ["GoldToTokenRate"] = 0.5f,
+            ["BossKillBonus"] = 0.5f, ["MinibossKillBonus"] = 0.1f, ["HazardBonusPerLevel"] = 0.25f, ["TierBonusPerLevel"] = 0.1f,
+            ["TokenPlayerBonusPerExtraPlayer"] = 0.5f, ["TokenChestBonusPerChest"] = 0.02f,
+            ["BoothX"] = Loot.Booth.DefaultPosition.x, ["BoothY"] = Loot.Booth.DefaultPosition.y,
+            ["BoothZ"] = Loot.Booth.DefaultPosition.z, ["BoothYaw"] = Loot.Booth.DefaultYaw,
+            ["GoblinDrops"] = 3, ["GoblinGuaranteedClass"] = 1, ["BeamMinClass"] = 2, ["ShopSlots"] = 6, ["ShopRefreshMinutes"] = 60,
+            ["BagGesture"] = "stick-hold",
+        };
+
+        private static bool IsOldDefault<T>(string key, T value)
+        {
+            if (!OldDefaults.TryGetValue(key, out var def)) return false;
+            if (value is float f && def is float d) return Math.Abs(f - d) < 0.0001f;
+            return Equals(value, def);
+        }
+
+        /// <summary>
+        /// Layout 12 (0.11.0 fix): the first 0.11.0 migration also carried values the player never
+        /// changed, so upgraders kept the 0.10.10 defaults. Where a layout-11 file still holds the
+        /// old default of a setting whose default changed, the new default is put back.
+        /// </summary>
+        private static void RepairLayout11()
+        {
+            var fixedCount = 0;
+            void Reset<T>(MelonPreferences_Entry<T> entry, T oldDefault)
+            {
+                var same = entry.Value is float f && oldDefault is float d ? Math.Abs(f - d) < 0.0001f : Equals(entry.Value, oldDefault);
+                if (!same || Equals(entry.Value, entry.DefaultValue)) return;
+                entry.Value = entry.DefaultValue;
+                fixedCount++;
+            }
+            Reset(GoblinDrops, 3);
+            Reset(LootGoblinScale, 1.5f);
+            Reset(DropLabels, "hover");
+            Reset(DropSound, "start");
+            Reset(AutoPickup, true);
+            Reset(DevTools, true);
+
+            ConfigVersion.Value = Layout;
+            MelonPreferences.Save();
+            MelonLogger.Msg($"LootOverhaul config layout {Layout}: {fixedCount} old default(s) from the first 0.11.0 migration replaced by the new defaults.");
+        }
+
+        /// <summary>
+        /// Layout 11 (0.11.0): every value a player changed from its 0.10.10 default moves from the old flat [LootOverhaul]
         /// section into its new section, the merged switches are worked out from the old pairs,
         /// and the keys that no longer exist are removed from the file.
         /// </summary>
@@ -170,6 +224,7 @@ namespace LootOverhaul
             void Carry<T>(MelonPreferences_Entry<T> entry, Dictionary<string, string> from)
             {
                 if (!from.TryGetValue(entry.Identifier, out var raw) || !TryParse(raw, out T value)) return;
+                if (IsOldDefault(entry.Identifier, value)) return;
                 entry.Value = value;
                 carried++;
             }
@@ -185,20 +240,20 @@ namespace LootOverhaul
                 Carry(e, m);
             Carry(BagGesture, m);
 
-            if (m.TryGetValue("DropLabels", out var lr) && TryParse(lr, out bool labels))
+            var hover = !m.TryGetValue("DropLabelsOnHover", out var hr) || !TryParse(hr, out bool h) || h;
+            if (m.TryGetValue("DropLabels", out var lr) && TryParse(lr, out bool labels) && !(labels && hover))
             {
-                var hover = !m.TryGetValue("DropLabelsOnHover", out var hr) || !TryParse(hr, out bool h) || h;
                 DropLabels.Value = !labels ? "off" : hover ? "hover" : "always";
                 carried++;
             }
-            if (m.TryGetValue("DropSounds", out var sr) && TryParse(sr, out bool sounds))
+            var chime = m.TryGetValue("DropChime", out var cr) && TryParse(cr, out string c) ? c : "start";
+            if (m.TryGetValue("DropSounds", out var sr) && TryParse(sr, out bool sounds) && !(sounds && chime == "start"))
             {
-                var chime = m.TryGetValue("DropChime", out var cr) && TryParse(cr, out string c) ? c : "start";
                 DropSound.Value = sounds ? chime : "off";
                 carried++;
             }
-            if (m.TryGetValue("JunkAutoPickup", out var ar) && TryParse(ar, out bool auto)) { AutoPickup.Value = auto; carried++; }
-            if (d.TryGetValue("ReconEnabled", out var rr) && TryParse(rr, out bool recon)) { DevTools.Value = recon; carried++; }
+            // JunkAutoPickup and ReconEnabled were on by default and their successors are off, so only a
+            // player who had turned them off has a choice to carry, and that matches the new default.
             if (d.TryGetValue("MirrorReconToConsole", out var mr) && TryParse(mr, out bool mirror) && mirror) VerboseLogging.Value = true;
 
             var removed = 0;
